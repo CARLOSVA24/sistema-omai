@@ -1,0 +1,6 @@
+{
+  "name": "gestion-de-patrullajes-terrestres",
+  "dependencies": {
+    "xlsx": "^0.18.5"
+  }
+}

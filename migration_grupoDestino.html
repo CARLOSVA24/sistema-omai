@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Migración de Personal - Asignar grupoDestino</title>
+    <style>
+        body { font-family: Arial; padding: 20px; background: #f0f0f0; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; }
+        button { padding: 10px 20px; background: #0ea5e9; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; margin: 5px; }
+        button:hover { background: #0284c7; }
+        .result { margin-top: 20px; padding: 15px; border-radius: 4px; }
+        .success { background: #d1fae5; color: #065f46; border: 1px solid #a7f3d0; }
+        .info { background: #dbeafe; color: #1e40af; border: 1px solid #bfdbfe; }
+        input[type="number"] { padding: 8px; font-size: 14px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Migración de datos de Personal</h1>
+        <p>Este script asignará automáticamente grupoDestino a todo el personal registrado</p>
+        
+        <button onclick="runMigration()">Ejecutar Migracion</button>
+        <button onclick="location.reload()">Recargar página</button>
+        <button onclick="openApp()">Abrir aplicación</button>
+        
+        <div id="result"></div>
+    </div>
+
+    <script>
+        function runMigration() {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = 'Procesando...';
+            
+            // Leer personal del localStorage
+            let personnel = [];
+            const raw = localStorage.getItem('gyepersonal');
+            
+            if (!raw) {
+                resultDiv.innerHTML = '<div class="result info">Error: No se encontraron datos de personal en localStorage</div>';
+                return;
+            }
+            
+            try {
+                personnel = JSON.parse(raw);
+            } catch (e) {
+                resultDiv.innerHTML = '<div class="result info">Error al parsear datos: ' + e.message + '</div>';
+                return;
+            }
+            
+            let updated = 0;
+            let alreadyHad = 0;
+            
+            // Asignar grupoDestino a cada persona que no lo tenga
+            personnel.forEach(p => {
+                if (!p.grupoDestino || p.grupoDestino.trim() === '') {
+                    // Por defecto asignar a GT ECHO
+                    p.grupoDestino = 'GT ECHO';
+                    updated++;
+                } else {
+                    alreadyHad++;
+                }
+            });
+            
+            // Guardar de vuelta
+            localStorage.setItem('gyepersonal', JSON.stringify(personnel));
+            
+            resultDiv.innerHTML = `
+                <div class="result success">
+                    MIGRACION COMPLETADA!
+                    <br><br>
+                    <strong>Estadísticas:</strong>
+                    <ul>
+                        <li>Total de personal: <strong>${personnel.length}</strong></li>
+                        <li>Actualizados: <strong>${updated}</strong></li>
+                        <li>Ya tenían grupoDestino: <strong>${alreadyHad}</strong></li>
+                    </ul>
+                    <br>
+                    <strong>PROXIMO PASO:</strong>
+                    <ol>
+                        <li>Haz clic en "Abrir aplicación" o recarga</li>
+                        <li>Verifica el dashboard - las estadísticas deberían mostrar todos los 458 como GT ECHO</li>
+                        <li>Edita los usuarios CODESC manualmente en la tabla de personal</li>
+                    </ol>
+                </div>
+            `;
+        }
+        
+        function openApp() {
+            window.location.href = './index.html';
+        }
+    </script>
+</body>
+</html>

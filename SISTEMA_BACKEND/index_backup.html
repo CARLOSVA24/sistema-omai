@@ -1,0 +1,2277 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GT 100.51 - SEGURIDAD MARÍTIMA</title>
+
+    <!-- Google Fonts -->
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Outfit:wght@400;600;800&display=swap"
+        rel="stylesheet">
+
+    <!-- Leaflet JS & CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <!-- Leaflet Draw (Fix type error for modern browsers) -->
+    <script>window.type = '';</script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"
+        crossorigin="anonymous"></script>
+
+    <!-- Leaflet Heatmap Plugin -->
+    <script src="https://cdn.jsdelivr.net/npm/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+
+    <!-- Google Fonts Extra -->
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@700;800;900&display=swap"
+        rel="stylesheet">
+
+    <!-- PDF & Excel Libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
+    <link rel="stylesheet" href="style.css">
+    <style>
+        .table-overlay.full-view {
+            position: relative !important;
+            top: 0 !important;
+            left: 0 !important;
+            right: 0 !important;
+            bottom: 0 !important;
+            width: 100% !important;
+            max-height: none !important;
+            height: calc(100vh - 70px) !important;
+            margin: 0 !important;
+            border-radius: 0 !important;
+            background: var(--bg-body) !important;
+            z-index: 1000 !important;
+            overflow-y: auto !important;
+            padding: 2rem !important;
+            box-shadow: none !important;
+            backdrop-filter: none !important;
+        }
+
+        .table-overlay.full-view .table-wrapper {
+            max-height: none !important;
+            overflow: visible !important;
+        }
+
+        .table-overlay.full-view .table-header h3 {
+            color: white !important;
+        }
+    </style>
+</head>
+
+<body> <!-- LOGIN OVERLAY -->
+    <div id="loginOverlay"
+        style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%); z-index: 999999; display: flex; align-items: center; justify-content: center; flex-direction: column;">
+        <div
+            style="background: var(--bg-card); padding: 3.5rem; border-radius: 12px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); width: 420px; text-align: center; border: 1px solid rgba(255,255,255,0.1);">
+            <div style="margin-bottom: 1.5rem;">
+                <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/c/cd/Escudo_de_la_Armada_del_Ecuador.svg/800px-Escudo_de_la_Armada_del_Ecuador.svg.png"
+                    alt="Armada del Ecuador" style="width: 80px; filter: drop-shadow(0 4px 6px rgba(0,0,0,0.1));">
+            </div>
+            <h2
+                style="margin-bottom: 0.5rem; color: var(--primary); font-family: 'Outfit', sans-serif; font-weight: 800; font-size: 1.5rem; letter-spacing: 1px;">
+                SISTEMA OMAI</h2>
+            <p
+                style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 2rem; font-weight: 600; letter-spacing: 0.5px;">
+                GT 100.51 - CONTROL DE ACCESO</p>
+
+            <div class="form-group" style="text-align: left; margin-bottom: 1.2rem;">
+                <label
+                    style="font-weight: 700; font-size: 0.75rem; color: var(--primary-light); text-transform: uppercase; letter-spacing: 1px;">Usuario
+                    / Rol</label>
+                <select id="loginRole"
+                    style="width: 100%; padding: 0.85rem; border-radius: 8px; border: 2px solid var(--border); margin-top: 0.5rem; font-size: 0.95rem; background-color: #f8fafc; color: var(--primary); font-weight: 600; outline: none; transition: border-color 0.2s;">
+                    <!-- Cargado vía JS -->
+                </select>
+            </div>
+            <div class="form-group" style="text-align: left; margin-bottom: 2rem;">
+                <label
+                    style="font-weight: 700; font-size: 0.75rem; color: var(--primary-light); text-transform: uppercase; letter-spacing: 1px;">Contraseña</label>
+                <input type="password" id="loginPassword"
+                    style="width: 100%; padding: 0.85rem; border-radius: 8px; border: 2px solid var(--border); margin-top: 0.5rem; font-size: 0.95rem; background-color: #f8fafc; color: var(--primary); outline: none; transition: border-color 0.2s;"
+                    placeholder="Ingrese su credencial">
+            </div>
+
+            <button id="btnLogin" class="btn-primary"
+                style="width: 100%; padding: 1rem; border-radius: 8px; font-size: 1rem; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; box-shadow: 0 4px 6px rgba(59,130,246,0.25);">INGRESAR
+                AL SISTEMA</button>
+            <div id="loginError"
+                style="color: var(--danger); margin-top: 1.5rem; font-size: 0.85rem; display: none; font-weight: 700; background: #fee2e2; padding: 0.8rem; border-radius: 6px; border: 1px solid #fca5a5;">
+                ⚠️ Credenciales incorrectas. Acceso denegado.
+            </div>
+        </div>
+        <div
+            style="margin-top: 2rem; color: rgba(255,255,255,0.6); font-size: 0.75rem; letter-spacing: 1px; text-transform: uppercase;">
+            Sistema de Mando y Control • Uso Exclusivo Oficial
+        </div>
+    </div>
+
+    <div id="debug-error-console"
+        style="display:none; position:fixed; top:0; left:0; width:100%; background:rgba(220,38,38,0.95); color:white; padding:15px; z-index:99999; font-family:monospace; font-size:12px; border-bottom:3px solid #7f1d1d; overflow-y:auto; max-height:30vh;">
+        <strong>⚠️ ERROR DETECTADO:</strong> <span id="error-msg-text"></span>
+        <button onclick="this.parentElement.style.display='none'"
+            style="float:right; background:white; color:red; border:none; padding:2px 8px; cursor:pointer; font-weight:bold;">X</button>
+    </div>
+    <script>
+        window.onerror = function (msg, url, line, col, error) {
+            var debugDiv = document.getElementById('debug-error-console');
+            var msgText = document.getElementById('error-msg-text');
+            if (debugDiv && msgText) {
+                debugDiv.style.display = 'block';
+                var filename = url ? url.split('/').pop() : 'desconocido';
+                var details = msg + ' <br> (Archivo: ' + filename + ' - Línea: ' + line + ')';
+                if (error && error.stack) {
+                    details += "<br><pre style='margin-top: 10px; font-size: 10px; text-align: left;'>" + error.stack + "</pre>";
+                }
+                msgText.innerHTML = details;
+            }
+            console.error(error || msg);
+            return false;
+        };
+    </script>
+    <nav class="top-nav">
+
+        <div class="nav-links">
+            <div class="nav-item dropdown" id="map-tools-item" style="display: none;">
+                <button class="nav-btn">
+                    <span class="icon">✏️</span> <span>Herramientas Mapa</span> <span class="arrow">▼</span>
+                </button>
+                <div class="dropdown-content">
+                    <a href="#" id="drawPolygon"><span class="icon">⬢</span> Polígono</a>
+                    <a href="#" id="drawPolyline"><span class="icon">📏</span> Línea</a>
+                    <a href="#" id="drawMeasure"><span class="icon">⚖️</span> Regla</a>
+                    <div class="menu-divider"></div>
+                    <a href="#" id="editDrawing"><span class="icon">⚙️</span> Editar Puntos</a>
+                    <a href="#" id="changeColor">
+                        <span class="icon">🎨</span> Color
+                        <input type="color" id="polygonColorPicker" value="#38bdf8">
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <div class="nav-status-area">
+            <div class="doc-classification secreto">SECRETO</div>
+        </div>
+        <div class="user-auth-area"></div>
+    </nav>
+    <div class="app-container">
+        <!-- Sidebar / Control Panel -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo-container"
+                    style="display: flex; align-items: center; justify-content: center; gap: 0.75rem;">
+                    <div class="logo-icon" style="font-size: 1.5rem;">🛡️</div>
+                    <h1 class="outfit-font" style="font-size: 1.4rem; font-weight: 800; margin: 0; color: #fff;">GT
+                        100.51</h1>
+                </div>
+            </div>
+
+            <nav class="sidebar-menu accordion-menu">
+                <div class="menu-item" id="menuItem-personal">
+                    <button class="menu-btn" data-target="personal" onclick="toggleSidebarMenu('personal', this)"><span
+                            class="icon">👥</span> PERSONAL <span class="arrow">▼</span></button>
+                    <div class="menu-content" id="personal">
+                        <div class="sub-menu">
+                            <button class="sub-menu-btn active" data-view="personnelView"
+                                onclick="activateSubmenuView('personnelView', this)">Registro de Personal</button>
+                            <button class="sub-menu-btn" data-view="watchDivisionView"
+                                onclick="activateSubmenuView('watchDivisionView', this)">División de Guardia
+                                (B/E)</button>
+                            <button class="sub-menu-btn" data-view="distributionView"
+                                onclick="activateSubmenuView('distributionView', this)">Distribución de
+                                Personal</button>
+                            <button class="sub-menu-btn" data-view="personnelStatsView"
+                                onclick="activateSubmenuView('personnelStatsView', this)">Estadísticas de
+                                Personal</button>
+                            <button class="sub-menu-btn" data-view="commandPostView"
+                                onclick="activateSubmenuView('commandPostView', this)">Registro de Puesto de
+                                Mando</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="menu-item" id="menuItem-operaciones">
+                    <button class="menu-btn" data-target="operaciones" onclick="toggleSidebarMenu('operaciones', this)"><span class="icon">⚙️</span> OPERACIONES <span class="arrow">▼</span></button>
+                    <div class="menu-content" id="operaciones">
+                        <div class="sub-menu">
+                            <button class="sub-menu-btn active" data-view="opsPlanningView"
+                                onclick="activateSubmenuView('opsPlanningView', this)">Planificación Diaria de
+                                Operaciones</button>
+                            <button class="sub-menu-btn" data-view="ordpatView"
+                                onclick="activateSubmenuView('ordpatView', this)">Órdenes de Patrulla</button>
+                            <button class="sub-menu-btn" data-view="instantOpsView"
+                                onclick="activateSubmenuView('instantOpsView', this)">Partes al Instante</button>
+
+                            <button class="sub-menu-btn" data-view="loadOrdersView"
+                                onclick="activateSubmenuView('loadOrdersView', this)">Órdenes de Operación</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="menu-item" id="menuItem-logistica">
+                    <button class="menu-btn" data-target="logistica" onclick="toggleSidebarMenu('logistica', this)"><span class="icon">📦</span> LOGÍSTICA <span class="arrow">▼</span></button>
+                    <div class="menu-content" id="logistica">
+                        <div class="sub-menu">
+                            <button class="sub-menu-btn active" data-view="logisticsView"
+                                onclick="activateSubmenuView('logisticsView', this)">Registro de Vehículos</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="menu-item" id="menuItem-inteligencia">
+                    <button class="menu-btn" data-target="inteligencia" onclick="toggleSidebarMenu('inteligencia', this)"><span class="icon">🧠</span> INTELIGENCIA <span class="arrow">▼</span></button>
+                    <div class="menu-content" id="inteligencia">
+                        <div class="sub-menu">
+                            <button class="sub-menu-btn active" data-type="map"
+                                onclick="toggleIntelView('map', this)">Registrar Incidente</button>
+                            <div id="intelFormContainer" style="margin-top: 10px; margin-bottom: 10px;">
+                                <section id="inteligenciaFormView" class="form-container sidebar-form">
+                                    <h3>Registrar Incidente</h3>
+                                    <form id="crimeForm">
+                                        <div class="form-group">
+                                            <label for="crimeType">Tipo de Delito</label>
+                                            <select id="crimeType" required>
+                                                <option value="" disabled selected>Seleccione un tipo</option>
+                                                <option value="robo">Robo</option>
+                                                <option value="sicariato">Sicariato</option>
+                                                <option value="extorsion">Extorsión</option>
+                                                <option value="droga">Expendio de Droga</option>
+                                            </select>
+                                        </div>
+
+                                        <div class="form-group">
+                                            <label for="district">Distrito</label>
+                                            <select id="district" required>
+                                                <option value="" disabled selected>Seleccione un distrito</option>
+                                                <option value="SUR">SUR</option>
+                                                <option value="ESTEROS">ESTEROS</option>
+                                                <option value="9 DE OCTUBRE">9 DE OCTUBRE</option>
+                                            </select>
+                                        </div>
+
+                                        <div class="form-group">
+                                            <label for="date">Fecha y Hora</label>
+                                            <input type="datetime-local" id="date" required>
+                                        </div>
+
+                                        <div class="form-group location-group">
+                                            <label>Ubicación</label>
+                                            <div class="coords-display">
+                                                <span id="lat">Lat: --</span>
+                                                <span id="lng">Lng: --</span>
+                                            </div>
+                                            <p class="location-help">Haz clic en el mapa.</p>
+                                        </div>
+
+                                        <div class="form-group">
+                                            <label for="observation">Observación</label>
+                                            <textarea id="observation" rows="2" placeholder="Detalles..."></textarea>
+                                        </div>
+
+                                        <button type="submit" id="submitBtn" class="btn-primary"
+                                            style="width: 100%;">Registrar</button>
+                                    </form>
+                                </section>
+                            </div>
+                            <button class="sub-menu-btn" data-type="table"
+                                onclick="toggleIntelView('table', this)">TABLA DE REGISTRO</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="menu-item" id="menuItem-historicos">
+                    <button class="menu-btn" data-target="historicos" onclick="toggleSidebarMenu('historicos', this)"><span class="icon">📜</span> REGISTROS HISTÓRICOS <span class="arrow">▼</span></button>
+                    <div class="menu-content" id="historicos">
+                        <div class="sub-menu">
+                            <button class="sub-menu-btn" data-view="historicalPatrolView"
+                                onclick="activateSubmenuView('historicalPatrolView', this)">Órdenes de Patrulla</button>
+                            <button class="sub-menu-btn" data-view="instantOpsView"
+                                onclick="activateSubmenuView('instantOpsView', this, true)">Partes al Instante</button>
+                            <button class="sub-menu-btn" data-view="operationalReportsView"
+                                onclick="activateSubmenuView('operationalReportsView', this)">Reportes de Días
+                                OMAI</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ADMIN MENU -->
+                <div class="menu-item" id="adminMenu" style="display: none;">
+                    <button class="menu-btn" data-target="adminPanel"
+                        onclick="toggleSidebarMenu('adminPanel', this)"><span class="icon">🔐</span> ADMINISTRACIÓN
+                        <span class="arrow">▼</span></button>
+                    <div class="menu-content" id="adminPanel">
+                        <div class="sub-menu">
+                            <button class="sub-menu-btn active" data-view="adminKeysView"
+                                onclick="activateSubmenuView('adminKeysView', this)">Gestión de Claves</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ACERCA DE -->
+                <div class="menu-item" id="menuItem-about">
+                    <button class="menu-btn" data-view="aboutView" onclick="activateSubmenuView('aboutView', this)">
+                        <span class="icon">ℹ️</span> ACERCA DE... <span class="arrow" style="opacity:0;">▼</span>
+                    </button>
+                </div>
+            </nav>
+        </aside>
+
+
+        <!-- Main Map Area -->
+        <main class="map-area">
+            <div id="map"></div>
+
+            <!-- Records Table Section -->
+            <section class="table-overlay">
+                <div class="table-header">
+                    <div>
+                        <h3>Registros de Incidentes</h3>
+                        <p class="text-muted" style="margin: 0.25rem 0 0; font-size: 0.9rem;">Filtra los incidentes por
+                            tipo y distrito para enfocar las operaciones terrestres.</p>
+                    </div>
+                    <div class="export-buttons">
+                        <button id="exportExcel" class="btn-export excel">
+                            <span class="icon">📊</span> Excel
+                        </button>
+                        <button id="exportPDF" class="btn-export pdf">
+                            <span class="icon">📄</span> PDF
+                        </button>
+                    </div>
+                </div>
+                <div class="filter-panel">
+                    <div class="filter-group">
+                        <label for="filterCrimeType">Tipo de Delito</label>
+                        <select id="filterCrimeType" class="filter-select">
+                            <option value="">Todos</option>
+                            <option value="robo">Robo</option>
+                            <option value="sicariato">Sicariato</option>
+                            <option value="extorsion">Extorsión</option>
+                            <option value="droga">Expendio de Droga</option>
+                            <option value="operacion">Operación</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label for="filterCrimeDistrict">Distrito</label>
+                        <select id="filterCrimeDistrict" class="filter-select">
+                            <option value="">Todos</option>
+                            <option value="SUR">SUR</option>
+                            <option value="ESTEROS">ESTEROS</option>
+                            <option value="9 DE OCTUBRE">9 DE OCTUBRE</option>
+                        </select>
+                    </div>
+                    <button id="clearFiltersBtn" class="btn-secondary filter-clear">Limpiar filtros</button>
+                </div>
+                <div class="table-wrapper" id="crimesTableWrapper">
+                    <table id="crimesTable">
+                        <thead>
+                            <tr>
+                                <th>Delito</th>
+                                <th>Distrito</th>
+                                <th>Fecha</th>
+                                <th>Lat/Lng</th>
+                                <th>Observación</th>
+                                <th style="width: 120px;">Acción</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tableBody">
+                            <!-- Los datos se insertarán aquí -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Estadísticas de Inteligencia -->
+                <div id="intelStatsContainer"
+                    style="display: none; margin-top: 2rem; padding: 2rem; background: #ffffff; border-radius: 12px; border: 1px solid var(--border); box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);">
+                    <h3
+                        style="color: var(--primary); margin-bottom: 2rem; font-family: 'Outfit', sans-serif; font-weight: 700; border-bottom: 2px solid #f1f5f9; padding-bottom: 1rem;">
+                        Análisis Estadístico de Incidentes</h3>
+                    <div class="stats-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 3rem;">
+                        <div class="chart-box">
+                            <h4
+                                style="color: #64748b; margin-bottom: 1.5rem; font-size: 0.85rem; text-align: center; text-transform: uppercase; letter-spacing: 1px; font-weight: 600;">
+                                Incidentes por Tipo</h4>
+                            <div style="height: 350px;"><canvas id="chartIntelType"></canvas></div>
+                        </div>
+                        <div class="chart-box">
+                            <h4
+                                style="color: #64748b; margin-bottom: 1.5rem; font-size: 0.85rem; text-align: center; text-transform: uppercase; letter-spacing: 1px; font-weight: 600;">
+                                Incidentes por Hora</h4>
+                            <div style="height: 350px;"><canvas id="chartIntelHour"></canvas></div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- About View -->
+            <div id="aboutView" class="fullscreen-view" style="display: none;">
+                <div class="view-header">
+                    <h2 class="outfit-font">Acerca del Sistema</h2>
+                </div>
+                <section class="form-container" style="max-width: 750px; margin: 2rem auto; text-align: center;">
+                    <div style="margin-bottom: 2rem;">
+                        <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/c/cd/Escudo_de_la_Armada_del_Ecuador.svg/800px-Escudo_de_la_Armada_del_Ecuador.svg.png"
+                            alt="Armada del Ecuador" style="width: 100px; margin-bottom: 1rem;">
+                        <h2
+                            style="font-family: 'Outfit', sans-serif; font-weight: 800; color: var(--primary); font-size: 1.6rem; margin-bottom: 0.25rem;">
+                            SISTEMA OMAI</h2>
+                        <p
+                            style="color: var(--text-muted); font-weight: 600; letter-spacing: 1px; font-size: 0.85rem; text-transform: uppercase;">
+                            Plataforma de Mando, Control y Gestión Operacional</p>
+                        <p style="color: var(--text-muted); font-size: 0.85rem;">Grupo de Tarea 100.51 — Armada del
+                            Ecuador</p>
+                    </div>
+
+                    <hr style="border: none; border-top: 2px solid var(--border); margin: 2rem 0;">
+
+                    <div style="text-align: left; display: grid; gap: 1rem;">
+                        <div
+                            style="background: #f8fafc; border-radius: 10px; padding: 1.5rem; border-left: 4px solid var(--accent);">
+                            <h4 style="color: var(--primary); margin-bottom: 0.5rem; font-family:'Outfit',sans-serif;">
+                                ✍️ Autoría</h4>
+                            <p style="color: var(--text-primary); font-size: 0.95rem; margin: 0;"><strong>Desarrollado
+                                    por:</strong> CPCB-SU Carlos Vallejo Ortega</p>
+                            <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 0.25rem;">ARMADA DEL
+                                ECUADOR</p>
+                        </div>
+
+                        <div
+                            style="background: #f8fafc; border-radius: 10px; padding: 1.5rem; border-left: 4px solid var(--success);">
+                            <h4 style="color: var(--primary); margin-bottom: 0.5rem; font-family:'Outfit',sans-serif;">
+                                📅 Versión</h4>
+                            <p style="color: var(--text-primary); font-size: 0.95rem; margin: 0;">
+                                <strong>Versión:</strong> 1.0.0 — 2026</p>
+                            <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 0.25rem;">Sistema de uso
+                                exclusivo oficial de la Armada del Ecuador.</p>
+                        </div>
+
+                        <div
+                            style="background: #fff5f5; border-radius: 10px; padding: 1.5rem; border-left: 4px solid var(--danger);">
+                            <h4 style="color: var(--danger); margin-bottom: 0.75rem; font-family:'Outfit',sans-serif;">
+                                🚫 Propiedad Intelectual y Prohibición de Reproducción</h4>
+                            <p style="color: var(--text-primary); font-size: 0.9rem; line-height: 1.7; margin: 0;">
+                                Este sistema es <strong>propiedad intelectual exclusiva</strong> del autor y de la
+                                <strong>Armada del Ecuador</strong>.
+                                Queda <strong>estrictamente prohibida</strong> su reproducción total o parcial,
+                                distribución, modificación o uso fuera del ámbito institucional autorizado,
+                                sin el consentimiento expreso y por escrito del autor y/o de la Dirección de la Armada
+                                del Ecuador.
+                            </p>
+                            <p
+                                style="color: var(--danger); font-weight: 700; font-size: 0.85rem; margin-top: 1rem; text-transform: uppercase; letter-spacing: 1px;">
+                                © 2025 — Todos los derechos reservados. Uso Oficial Exclusivo.
+                            </p>
+                        </div>
+                    </div>
+                </section>
+            </div>
+
+            <!-- Admin Keys View -->
+            <div id="adminKeysView" class="fullscreen-view" style="display: none;">
+                <div class="view-header">
+                    <h2 class="outfit-font">Gestión de Claves de Acceso</h2>
+                </div>
+                <section class="form-container" style="max-width: 500px; margin: 2rem auto;">
+                    <form id="adminKeysForm" onsubmit="handleGenerateKey(event)" style="display: grid; gap: 1.2rem;">
+                        <div class="form-group">
+                            <label style="font-weight: 700; color: var(--primary);">Usuario / Rol</label>
+                            <input type="text" id="keyRole" required
+                                style="width: 100%; padding: 0.8rem; border-radius: 8px; border: 1px solid var(--border);"
+                                placeholder="Ej: ADMINISTRADOR, JEFE OMAI...">
+                        </div>
+                        <div class="form-group">
+                            <label style="font-weight: 700; color: var(--primary);">Contraseña</label>
+                            <input type="text" id="newPassword" required
+                                style="width: 100%; padding: 0.8rem; border-radius: 8px; border: 1px solid var(--border);"
+                                placeholder="Ingrese nueva contraseña">
+                        </div>
+                        <button type="submit" class="btn-primary" style="margin-top: 1rem;"><span class="icon">💾</span>
+                            Guardar Clave</button>
+                    </form>
+                </section>
+
+                <section class="form-container" style="max-width: 700px; margin: 1rem auto;">
+                    <h3 style="margin-bottom: 1rem; color: var(--primary); font-family: 'Outfit', sans-serif;">Usuarios
+                        Registrados</h3>
+                    <div class="table-wrapper">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Usuario / Rol</th>
+                                    <th>Contraseña</th>
+                                    <th style="width: 150px;">Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="adminKeysTableBody">
+                                <!-- Generado por JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+            </div>
+
+            <div id="personnelView" class="fullscreen-view" style="display: none;">
+                <div class="view-header">
+                    <h2 class="outfit-font">Control Estadístico de Personal</h2>
+                    <div class="view-actions">
+                        <button id="importPersonnelExcel" type="button" class="btn-primary">
+                            <span class="icon">📥</span> Importar Excel
+                        </button>
+                        <button id="newPersonnelLoadBtn" type="button" class="btn-secondary"
+                            onclick="handleNewPersonnelLoad()">
+                            <span class="icon">🔄</span> Nueva Carga
+                        </button>
+                    </div>
+                </div>
+
+                <section class="form-container">
+                    <form id="personnelForm" class="grid-form"
+                        style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem; align-items: end;">
+                        <div class="form-group">
+                            <label for="pGrade">Grado / Rango</label>
+                            <select id="pGrade" required>
+                                <option value="" disabled selected>Seleccione grado</option>
+                                <option value="MARO">MARO (Marinero)</option>
+                                <option value="CBOS">CBOS (Cabo Segundo)</option>
+                                <option value="CBOP">CBOP (Cabo Primero)</option>
+                                <option value="SGOS">SGOS (Sargento Segundo)</option>
+                                <option value="SGOP">SGOP (Sargento Primero)</option>
+                                <option value="SUBS">SUBS (Suboficial Segundo)</option>
+                                <option value="SUBP">SUBP (Suboficial Primero)</option>
+                                <option value="SUBM">SUBM (Suboficial Mayor)</option>
+                                <option value="ALFG">ALFG (Alférez de Fragata)</option>
+                                <option value="TNFG">TNFG (Teniente de Fragata)</option>
+                                <option value="TNNV">TNNV (Teniente de Navío)</option>
+                                <option value="CPCB">CPCB (Capitán de Corbeta)</option>
+                                <option value="CPFG">CPFG (Capitán de Fragata)</option>
+                                <option value="CPNV">CPNV (Capitán de Navío)</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="pEspecialidad">Especialidad</label>
+                            <input type="text" id="pEspecialidad" placeholder="Ej: Infante de Marina" required>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="pName">Apellidos y Nombres</label>
+                            <input type="text" id="pName" placeholder="Ej: Pérez Juan" required>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="pId">Identificación (Cédula)</label>
+                            <input type="text" id="pId" placeholder="1234567890" pattern="[0-9]{10}" required>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="pCondicion">Condición</label>
+                            <select id="pCondicion" required>
+                                <option value="OPERATIVO" selected>OPERATIVO</option>
+                                <option value="EXCUSADO MEDICO">EXCUSADO MÉDICO</option>
+                                <option value="FRANCO">FRANCO</option>
+                                <option value="PERMISO">PERMISO</option>
+                                <option value="VACACIONES">VACACIONES</option>
+                                <option value="COMISION">COMISIÓN</option>
+                                <option value="FALTA">FALTA</option>
+                                <option value="AISLAMIENTO">AISLAMIENTO</option>
+                                <option value="HOSPITALIZADO">HOSPITALIZADO</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="pUnit">Reparto</label>
+                            <input type="text" id="pUnit" list="repartosList" placeholder="Seleccione reparto" required>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="pContact">Nro Telefónico</label>
+                            <input type="text" id="pContact" placeholder="0999999999" required>
+                        </div>
+
+                        <div class="form-actions" style="display: flex; align-items: flex-end;">
+                            <button type="submit" id="submitPersonnelBtn" class="btn-primary"
+                                style="width: 100%;">Registrar Personal</button>
+                        </div>
+                    </form>
+                </section>
+
+                <div class="table-header" style="margin-top: 2rem;">
+                    <h3>Registros de Personal</h3>
+                    <div class="export-buttons" id="personnelExportButtons">
+                        <input type="text" id="personnelSearchInput" placeholder="🔍 Buscar..." class="search-input">
+                    </div>
+                </div>
+
+                <div class="table-wrapper">
+                    <table id="personnelTable">
+                        <thead>
+                            <tr>
+                                <th>Grado</th>
+                                <th>Especialidad</th>
+                                <th>Nombres</th>
+                                <th>Cédula</th>
+                                <th>Condición</th>
+                                <th>Reparto</th>
+                                <th>Contacto</th>
+                                <th>Acción</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tableBodyPersonnel"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div id="watchDivisionView" class="fullscreen-view" style="display: none;">
+                <div class="view-header">
+                    <h2 class="outfit-font">División de Guardia (B/E)</h2>
+                    <div class="view-actions">
+                        <button id="selectAllGroupsBtn" type="button" class="btn-secondary"
+                            onclick="handleSelectAllGroupsClick()">
+                            <span class="icon">👥</span> Seleccionar Ambos
+                        </button>
+                        <button id="dividePersonnelBtn" type="button" class="btn-primary"
+                            onclick="handleDividePersonnelClick()">
+                            <span class="icon">⚖️</span> Dividir Personal
+                        </button>
+                    </div>
+                </div>
+
+                <div id="watchDivisionMessage"
+                    style="margin: 1rem 0; padding: 1rem; border-radius: 0.75rem; background: rgba(248, 215, 218, 0.95); color: #842029; border: 1px solid #f5c2c7; display: none; font-weight: 600;">
+                    <span id="watchDivisionMessageText"></span>
+                </div>
+
+                <div class="division-container" style="display: grid; grid-template-columns: 1fr 1fr; gap: 2.5rem;">
+                    <!-- Babor Column -->
+                    <div class="group-column" id="baborColumn">
+                        <div class="group-header"
+                            style="background: rgba(37, 99, 235, 0.1); border-bottom: 2px solid var(--color-robo);">
+                            <div style="display: flex; align-items: center; gap: 12px;">
+                                <h3 style="color: var(--color-robo); margin: 0;">BABOR</h3>
+                                <input type="text" id="baborPersonnelSearch" placeholder="Filtrar..."
+                                    class="search-input" style="width: 140px; padding: 4px 8px;">
+                            </div>
+                            <button type="button" class="btn-primary select-group-btn" data-group="babor"
+                                onclick="handleSelectGroupClick('babor')"
+                                style="padding: 4px 12px; font-size: 0.75rem; background: var(--color-robo);">Seleccionar</button>
+                        </div>
+                        <div class="group-list" id="baborList">
+                            <!-- Personnel items -->
+                        </div>
+                    </div>
+
+                    <!-- Estribor Column -->
+                    <div class="group-column" id="estriborColumn">
+                        <div class="group-header"
+                            style="background: rgba(220, 38, 38, 0.1); border-bottom: 2px solid var(--color-sicariato);">
+                            <div style="display: flex; align-items: center; gap: 12px;">
+                                <h3 style="color: var(--color-sicariato); margin: 0;">ESTRIBOR</h3>
+                                <input type="text" id="estriborPersonnelSearch" placeholder="Filtrar..."
+                                    class="search-input" style="width: 140px; padding: 4px 8px;">
+                            </div>
+                            <button type="button" class="btn-primary select-group-btn" data-group="estribor"
+                                onclick="handleSelectGroupClick('estribor')"
+                                style="padding: 4px 12px; font-size: 0.75rem; background: var(--color-sicariato);">Seleccionar</button>
+                        </div>
+                        <div class="group-list" id="estriborList">
+                            <!-- Personnel items -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="personnelStatsView" class="fullscreen-view" style="display: none;">
+                <div class="view-header">
+                    <h2 class="outfit-font">Dashboard de Estadísticas</h2>
+                    <div class="view-actions">
+                        <div class="operational-badge">
+                            TOTAL PERSONAL: <span id="statTotalPersonal">242</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="dashboard-grid">
+                    <div class="stat-card">
+                        <span id="statTotalPersonnelGrid" class="stat-value">0</span>
+                        <span class="stat-label">Personal Seleccionado</span>
+                    </div>
+                    <div class="stat-card babor">
+                        <span id="statTotalBabor" class="stat-value">0</span>
+                        <span class="stat-label">Babor</span>
+                    </div>
+                    <div class="stat-card estribor">
+                        <span id="statTotalEstribor" class="stat-value">0</span>
+                        <span class="stat-label">Estribor</span>
+                    </div>
+                    <div class="stat-card operativos">
+                        <span id="statTotalOperativos" class="stat-value">0</span>
+                        <span class="stat-label">Operativos</span>
+                    </div>
+                    <div class="stat-card otros">
+                        <span id="statTotalOtros" class="stat-value">0</span>
+                        <span class="stat-label">Otras Condiciones</span>
+                    </div>
+                </div>
+
+                <div class="charts-container" style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem;">
+                    <div class="card chart-card">
+                        <h4 class="card-title">Efectivos por Puesto</h4>
+                        <div class="chart-wrapper">
+                            <canvas id="personnelPostChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="card chart-card">
+                        <h4 class="card-title">Distribución por Reparto</h4>
+                        <div class="chart-wrapper">
+                            <canvas id="personnelUnitChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ===== REGISTRO DE PUESTO DE MANDO ===== -->
+            <div id="commandPostView" class="fullscreen-view" style="display: none;">
+                <div class="view-header">
+                    <h2 class="outfit-font">Registro de Puesto de Mando</h2>
+                </div>
+                <section class="form-container">
+                    <form id="commandPostForm" class="grid-form" onsubmit="handleCommandPostSubmit(event)"
+                        style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem; align-items: end;">
+                        <div class="form-group">
+                            <label for="cpGrade">Grado / Rango</label>
+                            <select id="cpGrade" required>
+                                <option value="" disabled selected>Seleccione grado</option>
+                                <option value="MARO">MARO (Marinero)</option>
+                                <option value="CBOS">CBOS (Cabo Segundo)</option>
+                                <option value="CBOP">CBOP (Cabo Primero)</option>
+                                <option value="SGOS">SGOS (Sargento Segundo)</option>
+                                <option value="SGOP">SGOP (Sargento Primero)</option>
+                                <option value="SUBS">SUBS (Suboficial Segundo)</option>
+                                <option value="SUBP">SUBP (Suboficial Primero)</option>
+                                <option value="SUBM">SUBM (Suboficial Mayor)</option>
+                                <option value="ALFG">ALFG (Alférez de Fragata)</option>
+                                <option value="TNFG">TNFG (Teniente de Fragata)</option>
+                                <option value="TNNV">TNNV (Teniente de Navío)</option>
+                                <option value="CPCB">CPCB (Capitán de Corbeta)</option>
+                                <option value="CPFG">CPFG (Capitán de Fragata)</option>
+                                <option value="CPNV">CPNV (Capitán de Navío)</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="cpEspecialidad">Especialidad</label>
+                            <input type="text" id="cpEspecialidad" placeholder="Ej: Infante de Marina" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="cpName">Apellidos y Nombres</label>
+                            <input type="text" id="cpName" placeholder="Ej: Pérez Juan" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="cpId">Identificación (Cédula)</label>
+                            <input type="text" id="cpId" placeholder="1234567890" pattern="[0-9]{10}" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="cpCondicion">Condición</label>
+                            <select id="cpCondicion" required>
+                                <option value="OPERATIVO" selected>OPERATIVO</option>
+                                <option value="EXCUSADO MEDICO">EXCUSADO MÉDICO</option>
+                                <option value="FRANCO">FRANCO</option>
+                                <option value="PERMISO">PERMISO</option>
+                                <option value="VACACIONES">VACACIONES</option>
+                                <option value="COMISION">COMISIÓN</option>
+                                <option value="FALTA">FALTA</option>
+                                <option value="AISLAMIENTO">AISLAMIENTO</option>
+                                <option value="HOSPITALIZADO">HOSPITALIZADO</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="cpUnit">Reparto</label>
+                            <input type="text" id="cpUnit" list="repartosList" placeholder="Seleccione reparto"
+                                required>
+                        </div>
+                        <div class="form-group">
+                            <label for="cpContact">Nro Telefónico</label>
+                            <input type="text" id="cpContact" placeholder="0999999999" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="cpDuty">Cargo / Función</label>
+                            <input type="text" id="cpDuty" placeholder="Ej: JEFE DE PUESTO DE MANDO" required>
+                        </div>
+                        <div class="form-actions" style="display: flex; align-items: flex-end; grid-column: span 2;">
+                            <button type="submit" class="btn-primary" style="width: 100%;">Registrar al Puesto de
+                                Mando</button>
+                        </div>
+                    </form>
+                </section>
+                <div class="table-header" style="margin-top: 2rem;">
+                    <h3>Personal Actual del Puesto de Mando</h3>
+                </div>
+                <div class="table-wrapper">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Grado</th>
+                                <th>Especialidad</th>
+                                <th>Nombres y Apellidos</th>
+                                <th>Cédula</th>
+                                <th>Condición</th>
+                                <th>Reparto</th>
+                                <th>Cargo / Función</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="commandPostTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Sección de Operaciones -->
+            <div id="opsPlanningView" class="fullscreen-view" style="display: none;">
+                <div class="view-header">
+                    <h2 class="outfit-font">Planificación Diaria de Operaciones</h2>
+                    <div class="view-actions">
+                        <button id="addOpsEventBtn" type="button" class="btn-primary" onclick="openOpsModal()">
+                            <span class="icon">➕</span> Nuevo Evento
+                        </button>
+                        <button id="exportOpsExcelBtn" type="button" class="btn-secondary"
+                            style="color: #107c10; border-color: #107c10;" onclick="exportOpsToExcel()">
+                            <span class="icon">📊</span> Excel
+                        </button>
+                        <button id="exportOpsPDFBtn" type="button" class="btn-secondary"
+                            style="color: #af111c; border-color: #af111c;" onclick="exportOpsToPDF()">
+                            <span class="icon">📄</span> PDF
+                        </button>
+                    </div>
+                </div>
+
+                <div id="opsPlanningContainer" class="table-container-grid">
+                    <!-- Dynamic content -->
+                </div>
+            </div>
+
+            <div id="instantOpsView" class="fullscreen-view" style="display: none;">
+                <div class="view-header">
+                    <h2 class="outfit-font">Parte al Instante</h2>
+                    <div class="view-actions">
+                        <button id="btnNuevoParte" type="button" class="btn-secondary">
+                            ✨ Nuevo Parte
+                        </button>
+                        <button id="exportOpsInstantExcel" type="button" class="btn-primary"
+                            style="background: #107c10;">
+                            📊 Excel
+                        </button>
+                        <button id="exportOpsInstantPDF" type="button" class="btn-primary" style="background: #af111c;">
+                            📄 PDF
+                        </button>
+                    </div>
+                </div>
+
+                <section class="form-container official-document">
+                    <div class="doc-classification secreto">SECRETO</div>
+                    <div class="doc-header">
+                        <p>ARMADA DEL ECUADOR</p>
+                        <p>GRUPO DE TAREA 100.51</p>
+                        <p>“SEGURIDAD MARÍTIMA”</p>
+                        <h3>PARTE AL INSTANTE</h3>
+                    </div>
+
+                    <form id="instantOpsForm" class="official-form" novalidate>
+                        <!-- Metadata Top -->
+                        <div
+                            style="display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 0.85rem; font-weight: bold;">
+                            <div style="display: flex; flex-direction: column; gap: 4px;">
+                                <div style="display: flex; align-items: center; gap: 10px;"><span
+                                        style="width: 100px;">NÚMERO:</span><input type="text" id="ioReportNum"
+                                        style="border:none; padding:0; width: 250px; font-weight: bold; font-size: 0.85rem;">
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 10px;"><span
+                                        style="width: 100px;">LUGAR:</span><input type="text" id="ioLugar"
+                                        value="GUAYAQUIL"
+                                        style="border:none; padding:0; width: 250px; font-weight: bold; font-size: 0.85rem;">
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 10px;"><span
+                                        style="width: 100px;">DESTINATARIO:</span><input type="text" id="ioDestinatario"
+                                        value="COOPNA"
+                                        style="border:none; padding:0; width: 250px; font-weight: bold; font-size: 0.85rem;">
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 10px;"><span
+                                        style="width: 100px;">COPIA:</span><input type="text" id="ioCopia"
+                                        style="border:none; padding:0; width: 250px; font-weight: bold; font-size: 0.85rem;">
+                                </div>
+                            </div>
+                            <div>
+                                <div style="display: flex; align-items: center; gap: 10px;">
+                                    <span>PRECEDENCIA:</span><input type="text" id="ioPrecedencia" value="U"
+                                        style="border:none; padding:0; width: 30px; text-align: center; font-weight: bold;">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div style="margin-bottom: 15px;">
+                            <textarea id="ioBTNarrative" rows="2"
+                                style="width: 100%; border: none; font-weight: bold; font-size: 0.9rem; resize: none;">BT. CÚMPLEME INFORMAR A USTED SEÑOR ALMIRANTE, LA NOVEDAD SUSCITADA EN LA JURISDICCIÓN DEL GT-100.51 “SEGURIDAD MARÍTIMA”, SEGÚN EL SIGUIENTE DETALLE:</textarea>
+                        </div>
+
+                        <!-- Main Content Table -->
+                        <table class="official-table-layout"
+                            style="width: 100%; border-collapse: collapse; border: 2px solid black;">
+                            <tr>
+                                <td
+                                    style="width: 150px; border: 1px solid black; padding: 8px; font-weight: bold; background: #f8fafc;">
+                                    REF.</td>
+                                <td style="border: 1px solid black; padding: 8px;">
+                                    <input type="text" id="ioRef" list="patrolOrderRefs"
+                                        placeholder="Busque o seleccione una Orden de Patrulla..."
+                                        style="width: 100%; border: none; font-weight: bold;">
+                                    <datalist id="patrolOrderRefs"></datalist>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td colspan="2" style="border: 1px solid black; padding: 8px;">
+                                    <div id="ioResultadosRich" contenteditable="true" class="rich-text-editor"
+                                        style="min-height: 120px; border: none; background: transparent; padding: 0;">
+                                        <ul>
+                                            <li>PRODUCTOS / RESULTADOS:</li>
+                                        </ul>
+                                    </div>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td
+                                    style="border: 1px solid black; padding: 8px; font-weight: bold; background: #f8fafc;">
+                                    QUIÉN:</td>
+                                <td style="border: 1px solid black; padding: 8px;"><input type="text" id="ioQuien"
+                                        value="EL GT-100.51 “SEGURIDAD MARÍTIMA”" style="width: 100%; border: none;">
+                                </td>
+                            </tr>
+                            <tr>
+                                <td
+                                    style="border: 1px solid black; padding: 8px; font-weight: bold; background: #f8fafc;">
+                                    PATRULLA INVOLUCRADA:</td>
+                                <td style="border: 1px solid black; padding: 8px;"><input type="text" id="ioPatrulla"
+                                        style="width: 100%; border: none;"></td>
+                            </tr>
+                            <tr>
+                                <td
+                                    style="border: 1px solid black; padding: 8px; font-weight: bold; background: #f8fafc;">
+                                    CÓMO:</td>
+                                <td style="border: 1px solid black; padding: 8px;"><textarea id="ioComo" rows="4"
+                                        style="width: 100%; border: none; resize: vertical;"></textarea></td>
+                            </tr>
+                            <tr>
+                                <td
+                                    style="border: 1px solid black; padding: 8px; font-weight: bold; background: #f8fafc;">
+                                    CUÁNDO:</td>
+                                <td style="border: 1px solid black; padding: 8px;"><input type="text" id="ioDate"
+                                        placeholder="DDHHMM R-MES -AÑO" style="width: 100%; border: none;"></td>
+                            </tr>
+                            <tr>
+                                <td
+                                    style="border: 1px solid black; padding: 8px; font-weight: bold; background: #f8fafc;">
+                                    DÓNDE:</td>
+                                <td style="border: 1px solid black; padding: 8px;">
+                                    <textarea id="ioDondeManual" rows="4"
+                                        placeholder="Provincia / Cantón / Distrito / Parroquia - Sector"
+                                        style="width: 100%; border: none; resize: none; margin-bottom: 5px;">PROVINCIA: GUAYAS.
+CANTÓN: GUAYAQUIL.
+DISTRITO: SUR.
+PARROQUIA/SECTOR: </textarea>
+                                    <div
+                                        style="display: flex; gap: 10px; align-items: center; font-size: 0.8rem; color: #444;">
+                                        <span>LAT:</span> <input type="number" step="0.000001" id="ioLatInput"
+                                            style="border:none; border-bottom:1px solid #ccc; width: 100px;">
+                                        <span>LONG:</span> <input type="number" step="0.000001" id="ioLngInput"
+                                            style="border:none; border-bottom:1px solid #ccc; width: 100px;">
+                                    </div>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td
+                                    style="border: 1px solid black; padding: 8px; font-weight: bold; background: #f8fafc;">
+                                    ACCIONES TOMADAS:</td>
+                                <td style="border: 1px solid black; padding: 8px;"><textarea id="ioAccionesTomadas"
+                                        rows="3" style="width: 100%; border: none; resize: vertical;"></textarea></td>
+                            </tr>
+                        </table>
+
+                        <div
+                            style="margin-top: 20px; padding: 15px; background: #f1f5f9; border-radius: 8px; border: 1px solid #cbd5e1;">
+                            <div
+                                style="font-weight: bold; margin-bottom: 10px; font-size: 0.9rem; color: var(--primary);">
+                                ANEXOS Y PERSONAL</div>
+                            <div class="form-row">
+                                <div class="form-group field-full">
+                                    <label>TURNO OPERATIVO</label>
+                                    <select id="ioShiftSelector"
+                                        style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #cbd5e1; margin-bottom: 10px; background: white;">
+                                        <option value="">-- Todos los Turnos --</option>
+                                    </select>
+                                    <label>PUESTO DE MANDO</label>
+                                    <select id="ioCommandPostSelector"
+                                        style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #cbd5e1; margin-bottom: 10px; background: white;">
+                                        <option value="">-- No asignado --</option>
+                                    </select>
+                                    <label>PUESTOS / PERSONAL PARTICIPANTE</label>
+                                    <div id="ioPuestosSelector" class="checkbox-group" style="margin-bottom: 10px;">
+                                    </div>
+                                    <div id="ioPersonnelPreview" class="personnel-preview-list"></div>
+                                </div>
+                            </div>
+                            <div class="form-row" style="margin-bottom: 10px;">
+                                <div class="form-group field-full"><label>FOTOGRAFÍAS</label><input type="file"
+                                        id="ioPhotosInput" accept="image/*" multiple>
+                                    <div id="ioPhotosPreview" class="photo-preview-grid"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div style="margin-top: 15px; font-weight: bold; font-size: 0.9rem;">BT.</div>
+
+                        <!-- Sección de Firma -->
+                        <div class="form-section full-width"
+                            style="margin-top: 30px; border-top: 2px solid var(--border); padding-top: 20px;">
+                            <h3
+                                style="display: flex; align-items: center; gap: 10px; color: var(--primary); margin-bottom: 15px;">
+                                <span style="font-size: 1.5rem;">🖋️</span> Pie de Firma Responsable
+                            </h3>
+                            <div class="grid-form"
+                                style="grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px;">
+                                <div class="form-group">
+                                    <label>Nombre del Firmante</label>
+                                    <input type="text" id="ioFirmanteNombre" placeholder="Ej: JUAN PEREZ"
+                                        oninput="updateIoSignaturePreview()">
+                                </div>
+                                <div class="form-group">
+                                    <label>Grado</label>
+                                    <input type="text" id="ioFirmanteGrado" placeholder="Ej: CPFG-EM"
+                                        oninput="updateIoSignaturePreview()">
+                                </div>
+                                <div class="form-group">
+                                    <label>Cargo</label>
+                                    <input type="text" id="ioFirmanteCargo" placeholder="Ej: COMANDANTE DEL GT-100.51"
+                                        oninput="updateIoSignaturePreview()">
+                                </div>
+                            </div>
+
+                            <!-- Previsualización de la Firma por -->
+                            <div id="ioFirmaPorContainer"
+                                style="margin-top: 20px; padding: 15px; background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 8px;">
+                                <div
+                                    style="font-size: 0.75rem; color: #64748b; margin-bottom: 8px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;">
+                                    Vista previa del pie de firma:</div>
+                                <div
+                                    style="font-family: 'Courier New', Courier, monospace; font-weight: bold; color: #1e293b;">
+                                    <div id="prevIoFirmaPor">FIRMA POR: --- / ---</div>
+                                </div>
+                            </div>
+
+                            <!-- Segunda Firma (Quien Firma Realmente) -->
+                            <h3
+                                style="display: flex; align-items: center; gap: 10px; color: var(--primary); margin-top: 25px; margin-bottom: 15px;">
+                                <span style="font-size: 1.5rem;">✍️</span> Elaborado por / Firma Real
+                            </h3>
+                            <div class="grid-form"
+                                style="grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px;">
+                                <div class="form-group">
+                                    <label>Nombre del Elaborador/ODG</label>
+                                    <input type="text" id="ioAutorNombre" placeholder="Ej: TNFG-SU STACEY PABLO">
+                                </div>
+                                <div class="form-group">
+                                    <label>Cargo del Elaborador</label>
+                                    <input type="text" id="ioAutorCargo"
+                                        placeholder="Ej: ODG PUESTO DE MANDO GT 100.51">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="form-actions full-width" style="margin-top: 20px;"><button
+                                id="registerInstantPartBtn" type="submit" class="btn-primary"
+                                style="width: 100%; padding: 12px; font-size: 1rem;">Registrar Parte Oficial</button>
+                        </div>
+                    </form>
+                </section>
+
+                <div class="table-header">
+                    <h3>Archivo de Partes</h3>
+                </div>
+                <div class="table-wrapper">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>N° Reporte</th>
+                                <th>REF</th>
+                                <th>Sector</th>
+                                <th>Fecha</th>
+                                <th>Resultados</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tableBodyInstantOps"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div id="ordpatView" class="fullscreen-view" style="display: none;">
+                <div class="view-header">
+                    <h2 class="outfit-font">Orden de Patrulla</h2>
+                    <div class="view-actions">
+                        <button type="button" id="newORDPATBtn" class="btn-secondary"
+                            onclick="handleNewORDPATClick()">🚀 Nueva Orden</button>
+                    </div>
+                </div>
+
+                <section class="form-container official-document">
+                    <div class="doc-classification secreto">SECRETO</div>
+                    <div class="doc-header">
+                        <h1 class="outfit-font">ORDEN DE PATRULLA</h1>
+                        <div id="displayIdCentered" class="doc-id-badge">---</div>
+                    </div>
+
+                    <form id="patrolOrderForm">
+                        <div class="form-section">
+                            <h4>Identificación</h4>
+                            <div class="grid-form"
+                                style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px;">
+                                <div class="form-group"><label>PREFIX</label><input type="text" id="opPrefix"
+                                        value="ARE-ORDPAT-UT100.51.4-" readonly></div>
+                                <div class="form-group"><label>DTG (AUTO)</label><input type="text" id="opDTGAuto"
+                                        readonly></div>
+                                <div class="form-group"><label>NRO. SEQ</label><input type="text" id="opSequence"
+                                        readonly></div>
+                                <div class="form-group">
+                                    <label>TURNO</label>
+                                    <select id="opShiftSelector" style="width: 100%;">
+                                        <option value="">-- Seleccionar --</option>
+                                        <option value="TURNO 1">TURNO 1</option>
+                                        <option value="TURNO 2">TURNO 2</option>
+                                        <option value="TURNO 3">TURNO 3</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>PUESTO</label>
+                                    <select id="opPostSelector" style="width: 100%;">
+                                        <option value="">-- Seleccionar --</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>PUESTO DE MANDO</label>
+                                    <select id="opCommandPostSelector" style="width: 100%;">
+                                        <option value="">-- Seleccionar --</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="grid-form"
+                                style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-top: 15px;">
+                                <div class="form-group">
+                                    <label>LUGAR DE EMISIÓN</label>
+                                    <input type="text" id="opLugar" placeholder="GUAYAQUIL" value="GUAYAQUIL">
+                                </div>
+                                <div class="form-group">
+                                    <label>PRECEDENCIA</label>
+                                    <select id="opPrecedencia">
+                                        <option value="R">RUTINA (R)</option>
+                                        <option value="P">PRIORIDAD (P)</option>
+                                        <option value="I">INMEDIATO (I)</option>
+                                        <option value="O">RELÁMPAGO (O)</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>EJECUTOR (DESTINATARIO)</label>
+                                    <input type="text" id="opDestinatario" placeholder="COOPNA, etc.">
+                                </div>
+                            </div>
+                            <div class="grid-form"
+                                style="display: grid; grid-template-columns: 1fr; gap: 15px; margin-top: 15px;">
+                                <div class="form-group">
+                                    <label>INFORMACIÓN (COPIA A:)</label>
+                                    <input type="text" id="opCopia" placeholder="COOPNA, CODESC, etc.">
+                                </div>
+                            </div>
+                            <div class="grid-form"
+                                style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-top: 15px;">
+                                <div class="form-group">
+                                    <label>HUSO HORARIO</label>
+                                    <input type="text" id="opHuso" value="ROMEO" placeholder="ROMEO">
+                                </div>
+                                <div class="form-group">
+                                    <label>DTG INICIO</label>
+                                    <input type="text" id="opDTGInicio" placeholder="121000R-MAY-2026">
+                                </div>
+                                <div class="form-group">
+                                    <label>DTG TÉRMINO</label>
+                                    <input type="text" id="opDTGTermino" placeholder="131000R-MAY-2026">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="form-group full-width" style="margin-top: 1.5rem;">
+                            <label>ENCABEZADO DE REFERENCIA</label>
+                            <textarea id="opHeaderText" rows="3"
+                                placeholder="A LA ORDEN DE PATRULLA ARE-CODESC-OPE-XXXX-2026-P..."></textarea>
+                        </div>
+
+                        <div class="form-section">
+                            <h4>Referencias</h4>
+                            <div id="opRefsList" class="dynamic-list">
+                                <table class="professional-edit-table">
+                                    <tbody id="opRefsBody"></tbody>
+                                </table>
+                            </div>
+                            <button type="button" id="addOpRefRow" class="btn-secondary btn-small">+ Añadir
+                                Referencia</button>
+                        </div>
+
+                        <div class="form-section">
+                            <h4>Organización por Tareas</h4>
+                            <div class="form-group full-width">
+                                <label>COMANDO (UT 100.51.4)</label>
+                                <input type="text" id="opOrgComando" value="UT 100.51.4 “PATRULLAJE TERRESTRE”">
+                            </div>
+                            <table class="professional-edit-table">
+                                <thead>
+                                    <tr>
+                                        <th>SIGLA</th>
+                                        <th>NOMINATIVO</th>
+                                        <th>PERSONAL</th>
+                                        <th></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="opOrgElementsBody"></tbody>
+                            </table>
+                            <button type="button" id="addOpOrgElemRow" class="btn-secondary btn-small">+ Añadir
+                                Elemento</button>
+                        </div>
+
+                        <div class="form-section">
+                            <h4>1. Situación</h4>
+                            <div class="form-group full-width">
+                                <label>A. SITUACIÓN GENERAL</label>
+                                <textarea id="opSituacionMain" rows="3" placeholder="Descripción general..."></textarea>
+                            </div>
+                            <div class="form-group full-width" style="margin-top: 1rem;">
+                                <label>B. AMENAZA (SITUACIÓN DEL ENEMIGO)</label>
+                                <textarea id="opSituacionAmenaza" rows="3"
+                                    placeholder="Amenazas detectadas..."></textarea>
+                            </div>
+                            <div class="form-group full-width" style="margin-top: 1rem;">
+                                <label>C. PROPIAS TROPAS / MEDIOS</label>
+                                <textarea id="opSituacionPropias" rows="2"
+                                    placeholder="Medios disponibles..."></textarea>
+                            </div>
+                        </div>
+
+                        <div class="form-section">
+                            <h4>2. Misión</h4>
+                            <div class="form-group full-width">
+                                <label>A. PROPÓSITO (PARA QUÉ)</label>
+                                <textarea id="opMisionA" rows="2"
+                                    placeholder="EJECUTAR OPERACIONES DE VIGILANCIA..."></textarea>
+                            </div>
+                            <div class="form-group full-width" style="margin-top: 1rem;">
+                                <label>B. TAREA (QUÉ SE VA A HACER)</label>
+                                <textarea id="opMisionB" rows="2"
+                                    placeholder="CON EL FIN DE NEUTRALIZAR ACTIVIDADES ILÍCITAS..."></textarea>
+                            </div>
+                        </div>
+
+                        <div class="form-section">
+                            <h4>3. Ejecución</h4>
+                            <div class="form-group full-width">
+                                <label>A. INTENCIÓN DEL COMANDANTE</label>
+                                <textarea id="opIntencion" rows="3" placeholder="MI INTENCIÓN ES..."></textarea>
+                            </div>
+                            <div class="form-group full-width" style="margin-top: 1rem;">
+                                <label>B. CONCEPTO DE LA OPERACIÓN</label>
+                                <textarea id="opConcepto" rows="4"
+                                    placeholder="ESTA OPERACIÓN SE REALIZARÁ EN TRES FASES..."></textarea>
+                            </div>
+                            <div class="form-group full-width" style="margin-top: 1rem;">
+                                <label>C. TAREAS A LAS UNIDADES / ELEMENTOS</label>
+                                <textarea id="opTareasText" rows="4"
+                                    placeholder="EL ELEMENTO DE COMBATE 1 REALIZARÁ..."></textarea>
+                            </div>
+                        </div>
+
+                        <div class="form-section">
+                            <h4>Conducta y Coordinación</h4>
+                            <div class="form-group full-width">
+                                <label>CONDUCTA (DIH, DD.HH., LORULF)</label>
+                                <textarea id="opConducta"
+                                    rows="4">CUMPLIR ESTRICTAMENTE CON: EL DERECHO INTERNACIONAL HUMANITARIO (DIH), LOS DERECHOS HUMANOS (DD.HH.), EL USO PROGRESIVO Y LEGÍTIMO DE LA FUERZA (LORULF)...</textarea>
+                            </div>
+                            <div class="form-group full-width" style="margin-top: 1rem;">
+                                <label>INSTRUCCIONES DE COORDINACIÓN</label>
+                                <textarea id="opCoordinacion"
+                                    rows="3">CON EL ECU-911: LLAMAR Y REPORTAR EL SECTOR DE OPERACIÓN... CON EL PUESTO DE MANDO (PM)...</textarea>
+                            </div>
+                        </div>
+
+                        <div class="form-section">
+                            <h4>4. Administración y Logística</h4>
+                            <div class="form-group full-width">
+                                <label>A. ABASTECIMIENTOS (CLASE I, II, III, IV, V)</label>
+                                <textarea id="opLogAbastecimiento" rows="2"
+                                    placeholder="COMBUSTIBLE, ALIMENTACIÓN..."></textarea>
+                            </div>
+                            <div class="form-group full-width" style="margin-top: 1rem;">
+                                <label>B. EVACUACIÓN Y HOSPITALIZACIÓN</label>
+                                <textarea id="opLogEvacuacion" rows="2"
+                                    placeholder="PUESTO DE SOCORRO EN..."></textarea>
+                            </div>
+                            <div class="form-group full-width" style="margin-top: 1rem;">
+                                <label>C. PERSONAL</label>
+                                <textarea id="opLogPersonal" rows="2" placeholder="RÉGIMEN DISCIPLINARIO..."></textarea>
+                            </div>
+                        </div>
+
+                        <div class="form-section">
+                            <h4>5. Comando y Control</h4>
+                            <div class="form-group full-width">
+                                <label>A. COMANDO (PUESTOS DE MANDO)</label>
+                                <textarea id="opMando" rows="2"
+                                    placeholder="EL PUESTO DE MANDO SE UBICARÁ EN..."></textarea>
+                            </div>
+                            <div class="form-group full-width" style="margin-top: 1rem;">
+                                <label>B. COMUNICACIONES Y ELECTRÓNICA</label>
+                                <textarea id="opComunicaciones" rows="2"
+                                    placeholder="FRECUENCIAS, CANALES, CÓDIGOS..."></textarea>
+                            </div>
+                            <div class="grid-form" style="margin-top: 1.5rem;">
+                                <div class="form-group">
+                                    <label>NOMBRE DEL FIRMANTE</label>
+                                    <input type="text" id="opFirmanteNombre" placeholder="Nombre del Comandante">
+                                </div>
+                                <div class="form-group">
+                                    <label>GRADO</label>
+                                    <input type="text" id="opFirmanteGrado" placeholder="CPNV-EMC">
+                                </div>
+                                <div class="form-group">
+                                    <label>CARGO</label>
+                                    <input type="text" id="opFirmanteCargo" placeholder="COMANDANTE GT 100.51">
+                                </div>
+                            </div>
+                            <div class="grid-form" style="margin-top: 1rem;">
+                                <div class="form-group">
+                                    <label>ELABORADO POR (NOMBRE)</label>
+                                    <input type="text" id="opAutorNombre" placeholder="TNFG-SU ...">
+                                </div>
+                                <div class="form-group">
+                                    <label>CARGO ELABORADOR</label>
+                                    <input type="text" id="opAutorCargo" placeholder="ODG PUESTO DE MANDO">
+                                </div>
+                                <div class="form-group">
+                                    <label>SUMILLA (INICIALES)</label>
+                                    <input type="text" id="opSumilla" placeholder="ABC/xyz">
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+                </section>
+
+                <div style="display: flex; justify-content: center; margin: 2rem 0;">
+                    <button type="submit" form="patrolOrderForm" class="btn-primary"
+                        style="padding: 1rem 3rem; font-size: 1.1rem; border-radius: 50px;">💾 Guardar y Generar Orden
+                        de Patrulla</button>
+                </div>
+
+                <div class="table-header">
+                    <h3>Archivo de Órdenes</h3>
+                </div>
+                <div class="table-wrapper">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>No.</th>
+                                <th>ID/ORDPAT</th>
+                                <th>F/H</th>
+                                <th>Misión</th>
+                                <th>Estado</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tableBodyORDPAT"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- ===== DISTRIBUCION DE PERSONAL ===== -->
+            <div id="distributionView" class="fullscreen-view" style="display: none;">
+                <div class="view-header">
+                    <h2 class="outfit-font">Distribución de Personal</h2>
+                    <div class="view-actions">
+                        <button id="generateDistributionBtn" type="button" class="btn-primary"
+                            onclick="generatePersonnelDistribution()">⚖️ Generar Distribución</button>
+                        <button id="exportDistExcelBtn" type="button" class="btn-secondary" style="color: #107c10;"
+                            onclick="exportDistributionToExcel()">📊 Excel</button>
+                        <button id="exportDistPDFBtn" type="button" class="btn-secondary" style="color: #af111c;"
+                            onclick="exportDistributionToPDF()">📄 PDF</button>
+                    </div>
+                </div>
+
+                <div id="distributionMessage"
+                    style="margin: 1rem 0; padding: 1rem; border-radius: 0.75rem; background: rgba(255, 243, 205, 0.95); color: #664d03; border: 1px solid #ffecb5; display: none; font-weight: 600;">
+                    <span id="distributionMessageText"></span>
+                </div>
+
+                <section id="locationActivation" class="form-section" style="margin-bottom: 2rem;">
+                    <div class="panel-header" style="margin-bottom: 1.5rem;">
+                        <h4 class="outfit-font">Configuración Operativa de Distribución</h4>
+                        <p class="text-muted">Gestión avanzada de puestos fijos, tareas de apoyo y control de toque de
+                            queda.</p>
+                    </div>
+
+                    <div class="tactical-grid">
+                        <!-- Tareas Fijas -->
+                        <div class="tactical-sector">
+                            <h5><span class="icon">📍</span> TAREAS FIJAS</h5>
+
+                            <!-- Puestos fijos (Completamente editables con cajas visibles) -->
+                            <div class="post-item">
+                                <div class="post-label-group" style="flex: 1; display: flex; align-items: center; gap: 10px;">
+                                    <input type="checkbox" class="ios-switch mini post-active" data-post="DISTRITO SUR" checked>
+                                    <input type="text" value="DISTRITO SUR" class="post-name-input" oninput="this.previousElementSibling.dataset.post = this.value" style="border: 1px solid var(--border); background: #fff; padding: 0.4rem 0.6rem; border-radius: 6px; font-size: 0.8rem; width: 100%; font-weight: 600; color: var(--text-primary);">
+                                </div>
+                                <input type="text" class="post-schedule" placeholder="Horario" value="0800-1600" style="width:95px; padding:0.4rem 0.6rem; border-radius:6px; border:1px solid var(--border); font-size:0.78rem;">
+                                <input type="number" class="post-quota" value="2" min="0" style="width:55px; padding: 0.4rem; border: 1px solid var(--border); border-radius: 6px; text-align: center;">
+                            </div>
+                            <div class="post-item">
+                                <div class="post-label-group" style="flex: 1; display: flex; align-items: center; gap: 10px;">
+                                    <input type="checkbox" class="ios-switch mini post-active" data-post="DISTRITO ESTEROS" checked>
+                                    <input type="text" value="DISTRITO ESTEROS" class="post-name-input" oninput="this.previousElementSibling.dataset.post = this.value" style="border: 1px solid var(--border); background: #fff; padding: 0.4rem 0.6rem; border-radius: 6px; font-size: 0.8rem; width: 100%; font-weight: 600; color: var(--text-primary);">
+                                </div>
+                                <input type="text" class="post-schedule" placeholder="Horario" value="0800-1600" style="width:95px; padding:0.4rem 0.6rem; border-radius:6px; border:1px solid var(--border); font-size:0.78rem;">
+                                <input type="number" class="post-quota" value="2" min="0" style="width:55px; padding: 0.4rem; border: 1px solid var(--border); border-radius: 6px; text-align: center;">
+                            </div>
+                            <div class="post-item">
+                                <div class="post-label-group" style="flex: 1; display: flex; align-items: center; gap: 10px;">
+                                    <input type="checkbox" class="ios-switch mini post-active" data-post="DISTRITO 9 OCT" checked>
+                                    <input type="text" value="DISTRITO 9 de OCTUBRE" class="post-name-input" oninput="this.previousElementSibling.dataset.post = this.value" style="border: 1px solid var(--border); background: #fff; padding: 0.4rem 0.6rem; border-radius: 6px; font-size: 0.8rem; width: 100%; font-weight: 600; color: var(--text-primary);">
+                                </div>
+                                <input type="text" class="post-schedule" placeholder="Horario" value="0800-1600" style="width:95px; padding:0.4rem 0.6rem; border-radius:6px; border:1px solid var(--border); font-size:0.78rem;">
+                                <input type="number" class="post-quota" value="2" min="0" style="width:55px; padding: 0.4rem; border: 1px solid var(--border); border-radius: 6px; text-align: center;">
+                            </div>
+                            <div class="post-item">
+                                <div class="post-label-group" style="flex: 1; display: flex; align-items: center; gap: 10px;">
+                                    <input type="checkbox" class="ios-switch mini post-active" data-post="HTMC" checked>
+                                    <input type="text" value="HTMC" class="post-name-input" oninput="this.previousElementSibling.dataset.post = this.value" style="border: 1px solid var(--border); background: #fff; padding: 0.4rem 0.6rem; border-radius: 6px; font-size: 0.8rem; width: 100%; font-weight: 600; color: var(--text-primary);">
+                                </div>
+                                <input type="text" class="post-schedule" placeholder="Horario" value="0800-1600" style="width:95px; padding:0.4rem 0.6rem; border-radius:6px; border:1px solid var(--border); font-size:0.78rem;">
+                                <input type="number" class="post-quota" value="2" min="0" style="width:55px; padding: 0.4rem; border: 1px solid var(--border); border-radius: 6px; text-align: center;">
+                            </div>
+                            <!-- 4 Tareas adicionales solicitadas -->
+                            <div class="post-item">
+                                <div class="post-label-group" style="flex: 1; display: flex; align-items: center; gap: 10px;">
+                                    <input type="checkbox" class="ios-switch mini post-active" data-post="PUESTO EXTRA 1">
+                                    <input type="text" placeholder="Nueva Tarea" class="post-name-input" oninput="this.previousElementSibling.dataset.post = this.value" style="border: 1px solid var(--border); background: #fff; padding: 0.4rem 0.6rem; border-radius: 6px; font-size: 0.8rem; width: 100%; font-weight: 600; color: var(--text-primary);">
+                                </div>
+                                <input type="text" class="post-schedule" placeholder="Horario" value="" style="width:95px; padding:0.4rem 0.6rem; border-radius:6px; border:1px solid var(--border); font-size:0.78rem;">
+                                <input type="number" class="post-quota" value="0" min="0" style="width:55px; padding: 0.4rem; border: 1px solid var(--border); border-radius: 6px; text-align: center;">
+                            </div>
+                            <div class="post-item">
+                                <div class="post-label-group" style="flex: 1; display: flex; align-items: center; gap: 10px;">
+                                    <input type="checkbox" class="ios-switch mini post-active" data-post="PUESTO EXTRA 2">
+                                    <input type="text" placeholder="Nueva Tarea" class="post-name-input" oninput="this.previousElementSibling.dataset.post = this.value" style="border: 1px solid var(--border); background: #fff; padding: 0.4rem 0.6rem; border-radius: 6px; font-size: 0.8rem; width: 100%; font-weight: 600; color: var(--text-primary);">
+                                </div>
+                                <input type="text" class="post-schedule" placeholder="Horario" value="" style="width:95px; padding:0.4rem 0.6rem; border-radius:6px; border:1px solid var(--border); font-size:0.78rem;">
+                                <input type="number" class="post-quota" value="0" min="0" style="width:55px; padding: 0.4rem; border: 1px solid var(--border); border-radius: 6px; text-align: center;">
+                            </div>
+                            <div class="post-item">
+                                <div class="post-label-group" style="flex: 1; display: flex; align-items: center; gap: 10px;">
+                                    <input type="checkbox" class="ios-switch mini post-active" data-post="PUESTO EXTRA 3">
+                                    <input type="text" placeholder="Nueva Tarea" class="post-name-input" oninput="this.previousElementSibling.dataset.post = this.value" style="border: 1px solid var(--border); background: #fff; padding: 0.4rem 0.6rem; border-radius: 6px; font-size: 0.8rem; width: 100%; font-weight: 600; color: var(--text-primary);">
+                                </div>
+                                <input type="text" class="post-schedule" placeholder="Horario" value="" style="width:95px; padding:0.4rem 0.6rem; border-radius:6px; border:1px solid var(--border); font-size:0.78rem;">
+                                <input type="number" class="post-quota" value="0" min="0" style="width:55px; padding: 0.4rem; border: 1px solid var(--border); border-radius: 6px; text-align: center;">
+                            </div>
+                            <div class="post-item">
+                                <div class="post-label-group" style="flex: 1; display: flex; align-items: center; gap: 10px;">
+                                    <input type="checkbox" class="ios-switch mini post-active" data-post="PUESTO EXTRA 4">
+                                    <input type="text" placeholder="Nueva Tarea" class="post-name-input" oninput="this.previousElementSibling.dataset.post = this.value" style="border: 1px solid var(--border); background: #fff; padding: 0.4rem 0.6rem; border-radius: 6px; font-size: 0.8rem; width: 100%; font-weight: 600; color: var(--text-primary);">
+                                </div>
+                                <input type="text" class="post-schedule" placeholder="Horario" value="" style="width:95px; padding:0.4rem 0.6rem; border-radius:6px; border:1px solid var(--border); font-size:0.78rem;">
+                                <input type="number" class="post-quota" value="0" min="0" style="width:55px; padding: 0.4rem; border: 1px solid var(--border); border-radius: 6px; text-align: center;">
+                            </div>
+
+                            <!-- Puestos adicionales dinámicos -->
+                            <div id="extraFixedPostsContainer"></div>
+
+                            <!-- Botón para agregar puesto adicional -->
+                            <button type="button" onclick="addExtraFixedPost()" class="btn-action" style="width:100%; margin-top:0.75rem; font-size:0.8rem; border-radius:6px; padding:0.4rem;">
+                                ➕ Agregar Puesto Fijo
+                            </button>
+
+                            <div class="shift-info"
+                                style="margin-top: 1rem; font-size: 0.75rem; background: #fff; padding: 10px; border-radius: 8px; border: 1px solid var(--border);">
+                                <strong>Horarios de Referencia:</strong><br>
+                                • T1: 0800-1200 / 2000-2400<br>
+                                • T2: 1200-1600 / 0000-0400<br>
+                                • T3: 1600-2000 / 0400-0800
+                            </div>
+                        </div>
+
+                        <!-- Tareas de Apoyo -->
+                        <div class="tactical-sector">
+                            <h5><span class="icon">🛡️</span> TAREAS DE APOYO</h5>
+                            <div class="support-post">
+                                <div class="post-label-group" style="margin-bottom: 8px;">
+                                    <input type="checkbox" class="ios-switch mini post-active"
+                                        data-post="SEGURIDAD PRESIDENCIAL">
+                                    <label>Seguridad Presidencial</label>
+                                </div>
+                                <div class="support-inputs">
+                                    <input type="text" class="support-time" placeholder="Horario">
+                                    <input type="number" class="support-qty" placeholder="Personal" min="0">
+                                </div>
+                            </div>
+                            <div class="support-post">
+                                <div class="post-label-group" style="margin-bottom: 8px;">
+                                    <input type="checkbox" class="ios-switch mini post-active"
+                                        data-post="SEGURIDAD PRIMERA DAMA">
+                                    <label>Seguridad Primera Dama</label>
+                                </div>
+                                <div class="support-inputs">
+                                    <input type="text" class="support-time" placeholder="Horario">
+                                    <input type="number" class="support-qty" placeholder="Personal" min="0">
+                                </div>
+                            </div>
+                            <div class="support-post">
+                                <div class="post-label-group" style="margin-bottom: 8px;">
+                                    <input type="checkbox" class="ios-switch mini post-active"
+                                        data-post="APOYO OTRAS INSTITUCIONES">
+                                    <label>Apoyo Otras Instituciones</label>
+                                </div>
+                                <div class="support-inputs">
+                                    <input type="text" class="support-time" placeholder="Horario">
+                                    <input type="number" class="support-qty" placeholder="Personal" min="0">
+                                </div>
+                            </div>
+                            <div class="support-post">
+                                <div class="post-label-group" style="margin-bottom: 8px;">
+                                    <input type="checkbox" class="ios-switch mini post-active"
+                                        data-post="POLICÍA NACIONAL">
+                                    <label>Apoyo Policía Nacional</label>
+                                </div>
+                                <div class="support-inputs">
+                                    <input type="text" class="support-time" placeholder="Horario">
+                                    <input type="number" class="support-qty" placeholder="Personal" min="0">
+                                </div>
+                            </div>
+                            <div class="support-post">
+                                <div class="post-label-group" style="margin-bottom: 8px;">
+                                    <input type="checkbox" class="ios-switch mini post-active" data-post="CPL">
+                                    <label>CPL</label>
+                                </div>
+                                <div class="support-inputs">
+                                    <input type="text" class="support-time" placeholder="Horario">
+                                    <input type="number" class="support-qty" placeholder="Personal" min="0">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Toque de Queda -->
+                        <div class="tactical-sector highlight">
+                            <h5><span class="icon">🌑</span> CONTROL TOQUE DE QUEDA</h5>
+
+                            <div class="post-item"
+                                style="margin-bottom: 12px; border-bottom: 1px solid var(--border); padding-bottom: 8px;">
+                                <div class="post-label-group">
+                                    <input type="checkbox" id="activateTQT1" class="ios-switch mini" checked>
+                                    <label>T1: 2300 - 0200</label>
+                                </div>
+                            </div>
+
+                            <div class="post-item" style="margin-bottom: 12px;">
+                                <div class="post-label-group">
+                                    <input type="checkbox" id="activateTQT2" class="ios-switch mini" checked>
+                                    <label>T2: 0200 - 0500</label>
+                                </div>
+                            </div>
+
+                            <div class="shift-info"
+                                style="margin-top: 1rem; font-size: 0.75rem; background: #fff; padding: 10px; border-radius: 8px; border: 1px solid var(--border);">
+                                <span style="color: var(--accent); font-weight: 700;">* Utiliza el personal remanente de
+                                    puestos fijos y tareas de apoyo. La distribución se dividirá equitativamente entre
+                                    los turnos activados.</span>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <div class="table-header">
+                    <h3>Listado de Distribución</h3>
+                </div>
+                <div class="table-wrapper">
+                    <table id="distributionTable">
+                        <thead>
+                            <tr>
+                                <th>Grado</th>
+                                <th>Especialidad</th>
+                                <th>Nombres</th>
+                                <th>Cédula</th>
+                                <th>Reparto</th>
+                                <th>Turno</th>
+                                <th>Acción</th>
+                            </tr>
+                        </thead>
+                        <tbody id="distributionTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- ===== LOGISTICA - VEHICULOS ===== -->
+            <div id="logisticsView" class="table-wrapper fullscreen-view" style="display: none; padding-top: 1rem;">
+                <div
+                    style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; padding: 0 1rem;">
+                    <h2 style="color: var(--accent-primary); margin: 0; letter-spacing: 1px;">REGISTRO DE VEHICULOS</h2>
+                </div>
+                <div style="margin: 0 1rem;">
+                    <section class="form-container" style="margin-bottom: 1.5rem;">
+                        <h2>Registrar / Actualizar Vehiculo</h2>
+                        <form id="vehicleForm" class="grid-form"
+                            style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem; align-items: end;">
+                            <div class="form-group"><label for="vPlate">Placa</label><input type="text" id="vPlate"
+                                    placeholder="Ej: GGA-1234" required></div>
+                            <div class="form-group"><label for="vType">Tipo</label><select id="vType" required>
+                                    <option value="" disabled selected>Seleccione tipo</option>
+                                    <option value="PATRULLERO">PATRULLERO</option>
+                                    <option value="CAMIONETA">CAMIONETA</option>
+                                    <option value="MOTO">MOTO</option>
+                                    <option value="LANCHA">LANCHA</option>
+                                    <option value="OTRO">OTRO</option>
+                                </select></div>
+                            <div class="form-group"><label for="vBrand">Marca / Modelo</label><input type="text"
+                                    id="vBrand" placeholder="Ej: Toyota Hilux" required></div>
+                            <div class="form-group"><label for="vKM">Kilometraje Actual</label><input type="number"
+                                    id="vKM" placeholder="Ej: 45000" required></div>
+                            <div class="form-group"><label for="vLastMaintKM">KM Ultimo Mantenimiento</label><input
+                                    type="number" id="vLastMaintKM" placeholder="Ej: 40000"></div>
+                            <div class="form-group form-actions" style="display: flex; align-items: flex-end;"><button
+                                    type="submit" id="submitVehicleBtn" class="btn-primary"
+                                    style="width: 100%;">Registrar Vehiculo</button></div>
+                        </form>
+                    </section>
+                    <div class="table-wrapper">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Placa</th>
+                                    <th>Tipo</th>
+                                    <th>Marca/Modelo</th>
+                                    <th>KM Actual</th>
+                                    <th>Ultimo Mant.</th>
+                                    <th>Estado</th>
+                                    <th>Accion</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tableBodyVehicles"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ===== CARGAR ORDENES DE OPERACION ===== -->
+            <div id="loadOrdersView" class="fullscreen-view"
+                style="display: none; padding: 2rem; flex-direction: column; align-items: flex-start;">
+                <div class="view-header"
+                    style="margin-bottom: 2rem; border-bottom: 2px solid var(--border); padding-bottom: 1.5rem; width: 100%; display: block; text-align: left;">
+                    <h2 class="outfit-font"
+                        style="font-size: 2.2rem; margin: 0; color: var(--primary); display: block;">Repositorio de
+                        Órdenes de Operación</h2>
+                    <p class="text-muted" style="margin-top: 10px; font-size: 1rem; display: block;">Archivo digital de
+                        documentos externos y directivas operativas.</p>
+                </div>
+
+                <div class="repository-layout"
+                    style="width: 100%; display: grid; grid-template-columns: 360px 1fr; gap: 2rem;">
+                    <div class="repository-sidebar">
+                        <label for="uploadExternalOrder" class="upload-drop-zone">
+                            <span class="icon">📄</span>
+                            <span style="font-weight: 700; color: var(--primary);">Cargar Nueva Orden</span>
+                            <p style="font-size: 0.75rem; color: #94a3b8; margin-top: 5px;">Click o arrastre archivo PDF
+                                aquí</p>
+                        </label>
+                        <input type="file" id="uploadExternalOrder" accept=".pdf" style="display: none;">
+
+                        <div class="search-group">
+                            <input type="text" id="loadOrdersSearch" placeholder="🔍 Buscar por nombre o fecha..."
+                                class="search-input" style="width: 100%; border-radius: 8px;">
+                        </div>
+
+                        <div id="loadOrdersList" class="order-list-items">
+                            <!-- Items se cargan dinámicamente -->
+                        </div>
+                    </div>
+
+                    <div class="repository-viewer">
+                        <div id="viewerInitialState" class="empty-viewer">
+                            <div
+                                style="background: rgba(59, 130, 246, 0.05); padding: 40px; border-radius: 50%; margin-bottom: 20px;">
+                                <span class="icon" style="font-size: 4rem;">📁</span>
+                            </div>
+                            <h3 class="outfit-font" style="color: var(--primary);">Repositorio Digital</h3>
+                            <p>Seleccione un documento del listado lateral para visualizar su contenido.</p>
+                        </div>
+
+                        <div id="viewerToolbar" class="viewer-tools" style="display: none;">
+                            <div class="viewing-info">
+                                <span class="doc-id-badge" style="margin-right: 15px;">PDF</span>
+                                <span id="viewingOrderLabel" class="order-label"
+                                    style="font-weight: 700; color: var(--primary);"></span>
+                            </div>
+                            <div class="tool-buttons" style="display: flex; gap: 10px;">
+                                <button id="downloadCurrentOrder" class="btn-action edit" style="padding: 8px 20px;">📥
+                                    Descargar</button>
+                                <button id="deleteCurrentOrder" class="btn-action delete" style="padding: 8px 20px;">🗑️
+                                    Eliminar</button>
+                            </div>
+                        </div>
+                        <iframe id="orderPDFViewer" class="pdf-frame" style="display: none;"></iframe>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ===== HISTORICO - ORDENES DE PATRULLA ===== -->
+            <div id="historicalPatrolView" class="table-wrapper fullscreen-view"
+                style="display: none; padding-top: 1rem;">
+                <div
+                    style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; padding: 0 1rem;">
+                    <h2 style="color: var(--accent-primary); margin: 0; letter-spacing: 1px;">HISTORIAL - ORDENES DE
+                        PATRULLA
+                    </h2>
+                </div>
+                <div class="table-wrapper" style="margin: 0 1rem;">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>N Orden</th>
+                                <th>Unidad</th>
+                                <th>Fecha Creacion</th>
+                                <th>Fecha Cierre</th>
+                                <th>Estado</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="historicalPatrolBody"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- ===== HISTORICO - REPORTES DE OPERACION ===== -->
+            <div id="operationalReportsView" class="table-wrapper fullscreen-view"
+                style="display: none; padding-top: 1rem;">
+                <div
+                    style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; padding: 0 1rem;">
+                    <h2 style="color: var(--accent-primary); margin: 0; letter-spacing: 1px;">REPORTES DE DÍAS OMAI DE
+                        PERSONAL</h2>
+                    <div class="view-actions" style="display: flex; gap: 1rem; align-items: center;">
+                        <select id="reportYear" class="nav-btn" style="width: auto;">
+                            <option value="2024">2024</option>
+                            <option value="2025">2025</option>
+                            <option value="2026" selected>2026</option>
+                        </select>
+                        <select id="reportPeriod" class="nav-btn" style="width: auto;">
+                            <optgroup label="Mensual">
+                                <option value="m1">Enero</option>
+                                <option value="m2">Febrero</option>
+                                <option value="m3">Marzo</option>
+                                <option value="m4">Abril</option>
+                                <option value="m5">Mayo</option>
+                                <option value="m6">Junio</option>
+                                <option value="m7">Julio</option>
+                                <option value="m8">Agosto</option>
+                                <option value="m9">Septiembre</option>
+                                <option value="m10">Octubre</option>
+                                <option value="m11">Noviembre</option>
+                                <option value="m12">Diciembre</option>
+                            </optgroup>
+                            <optgroup label="Semestral">
+                                <option value="s1">Primer Semestre</option>
+                                <option value="s2">Segundo Semestre</option>
+                            </optgroup>
+                            <option value="year">Anual</option>
+                        </select>
+                        <button class="btn-primary" onclick="generateOMAIReport()">Generar Reporte OMAI</button>
+                        <button class="btn-secondary" style="color: #107c10; border-color: #107c10;"
+                            onclick="exportOMAIReportToExcel()">
+                            <span class="icon">📊</span> Excel
+                        </button>
+                        <button class="btn-secondary" style="color: #af111c; border-color: #af111c;"
+                            onclick="exportOMAIReportToPDF()">
+                            <span class="icon">📄</span> PDF
+                        </button>
+                    </div>
+                </div>
+                <div class="table-wrapper" style="margin: 0 1rem;">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Grado</th>
+                                <th>Nombres y Apellidos</th>
+                                <th>Especialidad</th>
+                                <th>Cédula</th>
+                                <th>Días OMAI</th>
+                                <th>Estado</th>
+                            </tr>
+                        </thead>
+                        <tbody id="omaiReportBody">
+                            <tr>
+                                <td colspan="6" style="text-align: center; padding: 40px; color: var(--text-muted);">
+                                    Seleccione el periodo y presione "Generar Reporte OMAI".
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+    <!-- Modal: Editar Asignacion de Distribucion -->
+    <div id="editDistModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Editar Asignacion</h3>
+                <span class="close-modal" id="closeEditDist">&times;</span>
+            </div>
+            <div class="modal-body">
+                <p id="editDistName"
+                    style="font-weight: 700; color: var(--accent-primary); margin-bottom: 1.5rem; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem;">
+                </p>
+                <form id="editDistForm">
+                    <input type="hidden" id="editDistId">
+                    <div class="form-group" style="margin-bottom: 1rem;">
+                        <label for="editDistLocation">Nuevo Puesto</label>
+                        <select id="editDistLocation" required></select>
+                    </div>
+                    <div class="form-group" style="margin-bottom: 1rem;">
+                        <label for="editDistShift">Nuevo Turno</label>
+                        <select id="editDistShift" required>
+                            <option value="TAREA DE APOYO">TAREA DE APOYO</option>
+                            <option value="CONTROL TOQUE DE QUEDA">CONTROL TOQUE DE QUEDA</option>
+                            <option value="TURNO 1">TURNO 1 (08-12 / 20-00)</option>
+                            <option value="TURNO 2">TURNO 2 (12-16 / 00-04)</option>
+                            <option value="TURNO 3">TURNO 3 (16-20 / 04-08)</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="margin-bottom: 1.5rem;">
+                        <label for="editDistTime">Horario Especifico (Opcional)</label>
+                        <input type="text" id="editDistTime" placeholder="Ej: 0700-1900">
+                    </div>
+                    <button type="submit" class="btn-primary" style="width: 100%;">Guardar Cambios</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Properties Modal -->
+    <div id="propertiesModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Propiedades del Objeto</h3>
+                <span class="close-modal">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="propName">Nombre / Etiqueta</label>
+                    <input type="text" id="propName" placeholder="Ej: Sector 1">
+                </div>
+                <div class="form-group">
+                    <label for="propColor">Color de Área</label>
+                    <input type="color" id="propColor">
+                </div>
+                <div class="form-group">
+                    <label for="propOpacity">Opacidad del Relleno</label>
+                    <input type="range" id="propOpacity" min="0" max="1" step="0.1" value="0.3">
+                </div>
+
+                <!-- Editor de Puntos (Coordenadas) -->
+                <div id="coordEditorContainer"
+                    style="margin-top: 1.5rem; border-top: 1px solid var(--border); padding-top: 1rem; display: none;">
+                    <h4
+                        style="color: var(--accent-primary); font-size: 0.8rem; text-transform: uppercase; margin-bottom: 0.8rem;">
+                        Vértices del Polígono / Línea</h4>
+                    <div id="polygonPointsContainer"
+                        style="max-height: 200px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding-right: 5px;">
+                        <!-- Se poblará dinámicamente -->
+                    </div>
+                </div>
+
+                <div style="margin-top: 1.5rem; display: flex; flex-direction: column; gap: 10px;">
+                    <button id="saveProperties" class="btn-primary">Aplicar Cambios</button>
+                    <button id="deleteObject" class="btn-secondary"
+                        style="background-color: rgba(239,68,68,0.1); color: #ef4444; border-color: #ef4444;">Eliminar
+                        Objeto</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notification Toast -->
+    <div id="notification" class="notification"></div>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <!-- Leaflet Heat Plugin -->
+    <script src="https://leaflet.github.io/Leaflet.heat/dist/leaflet-heat.js"></script>
+
+    <!-- Export Libraries -->
+    <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
+
+    <!-- Drawing & Measurement Libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+
+    <!-- Graphics & Drawing -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://unpkg.com/leaflet-omnivore@0.3.4/leaflet-omnivore.min.js"></script>
+    <script src="https://unpkg.com/leaflet-kmz@latest/dist/leaflet-kmz.js"></script>
+
+    <!-- Dashboard View Overlay -->
+    <div id="dashboardOverlay" class="dashboard-overlay">
+        <div class="dashboard-content">
+            <header class="dashboard-header">
+                <h2>Dashboard de Operaciones GT 100.51</h2>
+                <button id="closeDashboard" class="close-btn">&times;</button>
+            </header>
+
+            <div class="dashboard-body">
+                <div class="dashboard-stats-sidebar">
+                    <div class="stat-card-main">
+                        <span class="stat-label">Total Reportes Nacional</span>
+                        <span class="stat-value" id="dashTotal">0</span>
+                    </div>
+
+                    <div class="district-breakdown">
+                        <h3>Desglose por Distrito</h3>
+                        <div id="dashDistricts">
+                            <!-- District rows here -->
+                        </div>
+                    </div>
+                </div>
+
+                <div class="dashboard-main-chart">
+                    <canvas id="crimeChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal para Agregar/Editar Evento de Operaciones -->
+    <div id="addOpsEventModal" class="modal">
+        <div class="modal-content" style="max-width: 600px;">
+            <div class="modal-header">
+                <h2 id="opsModalTitle">Nuevo Evento Operativo</h2>
+                <span class="close-modal" id="closeOpsModal" onclick="closeOpsModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <form id="opsEventForm" onsubmit="saveOpsEvent(event)">
+                    <input type="hidden" id="editOpsId">
+                    <div class="form-group">
+                        <label for="opsEvento">Evento (Tipo de Operación)</label>
+                        <input type="text" id="opsEvento" placeholder="Ej: CAMEX MÓVIL/PEDESTRE" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="opsFechaHora">Fecha / Hora (Turno)</label>
+                        <select id="opsFechaHora" onchange="updateOpsPersonnelAutoFill()" required>
+                            <option value="">Seleccione Turno...</option>
+                            <option value="08H00 A 12H00 / 20H00 A 00H00">TURNO 1 (08H00 A 12H00 / 20H00 A 00H00)
+                            </option>
+                            <option value="12H00 A 16H00 / 00H00 A 04H00">TURNO 2 (12H00 A 16H00 / 00H00 A 04H00)
+                            </option>
+                            <option value="16H00 A 20H00 / 04H00 A 08H00">TURNO 3 (16H00 A 20H00 / 04H00 A 08H00)
+                            </option>
+                            <option value="CONTROL TOQUE DE QUEDA T1">CONTROL TOQUE DE QUEDA T1 (2300 - 0200)</option>
+                            <option value="CONTROL TOQUE DE QUEDA T2">CONTROL TOQUE DE QUEDA T2 (0200 - 0500)</option>
+                        </select>
+                    </div>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="opsDistrito">Distrito</label>
+                            <select id="opsDistrito" onchange="updateOpsPersonnelAutoFill()" required>
+                                <option value="">Seleccione Distrito...</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="opsSector">Sector / Detalles</label>
+                            <input type="text" id="opsSector" placeholder="Ej: AV. ABDÓN CALDERÓN..." required>
+                        </div>
+                    </div>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="opsPersonal">Personal Empleado</label>
+                            <input type="text" id="opsPersonal" placeholder="Ej: 01 ESCUADRA 01 OF + 8 TRI" required>
+                        </div>
+                        <div class="form-group">
+                            <label style="display: flex; justify-content: space-between; align-items: center;">
+                                Vehículos
+                                <span id="availableVehiclesCount"
+                                    style="font-size: 0.7rem; color: var(--accent-primary); font-weight: normal;">Disponibles:
+                                    0/0</span>
+                            </label>
+                            <div id="opsVehiculosContainer"
+                                style="max-height: 120px; overflow-y: auto; background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 0.8rem; display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                                <!-- Se poblará dinámicamente -->
+                                <p
+                                    style="grid-column: 1 / -1; font-size: 0.8rem; color: var(--text-muted); text-align: center;">
+                                    No hay vehículos disponibles</p>
+                            </div>
+                            <input type="hidden" id="opsVehiculos">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="opsNovedad">Novedad / Cambios de Operación</label>
+                        <textarea id="opsNovedad"
+                            style="width: 100%; border-radius: 8px; background: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border); padding: 0.8rem; height: 80px;"
+                            placeholder="Detalles de ejecución o novedades..."></textarea>
+                    </div>
+                    <div style="display: flex; gap: 1rem; margin-top: 1.5rem;">
+                        <button type="submit" class="btn-primary" style="flex: 1;">Guardar Evento</button>
+                        <button type="button" id="cancelOpsBtn" class="btn-secondary" style="flex: 1;"
+                            onclick="closeOpsModal()">Cancelar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal para Firma Electrónica -->
+    <div id="signatureModal" class="modal">
+        <div class="modal-content" style="max-width: 450px; text-align: center;">
+            <div class="modal-header">
+                <h2 class="outfit-font" style="color: var(--primary);">Firma Electrónica de Parte</h2>
+                <span class="close-modal" onclick="closeSignatureModal()">&times;</span>
+            </div>
+            <div class="modal-body" style="padding: 2rem;">
+                <p style="color: #64748b; margin-bottom: 1.5rem; font-size: 0.9rem;">Dibuje su firma en el recuadro
+                    inferior para validar y archivar el documento oficialmente.</p>
+
+                <div
+                    style="border: 2px dashed #cbd5e1; border-radius: 8px; background: #f8fafc; margin-bottom: 1.5rem; position: relative;">
+                    <canvas id="signaturePad" width="380" height="200"
+                        style="cursor: crosshair; touch-action: none;"></canvas>
+                    <button type="button" onclick="clearSignature()"
+                        style="position: absolute; bottom: 10px; right: 10px; background: rgba(255,255,255,0.8); border: 1px solid #cbd5e1; border-radius: 4px; padding: 4px 8px; font-size: 0.7rem; color: #64748b; cursor: pointer;">Limpiar</button>
+                </div>
+
+                <div style="display: flex; flex-direction: column; gap: 0.8rem;">
+                    <button type="button" id="confirmSignatureBtn" class="btn-primary"
+                        style="width: 100%; padding: 12px; font-weight: 600; background: #1e293b;">Confirmar Firma
+                        Ológrafa</button>
+
+                    <div
+                        style="margin: 0.5rem 0; border-top: 1px solid #e2e8f0; padding-top: 1rem; background: #f0f9ff; padding: 15px; border-radius: 8px;">
+                        <p
+                            style="font-weight: 700; font-size: 0.85rem; color: #0369a1; margin-bottom: 0.5rem; text-transform: uppercase;">
+                            Firma Digital (FirmaEC)</p>
+
+                        <div style="display: flex; flex-direction: column; gap: 10px;">
+                            <a href="firmaec://" class="btn-secondary"
+                                style="width: 100%; border-color: #0ea5e9; color: #0ea5e9; display: flex; align-items: center; justify-content: center; gap: 8px; text-decoration: none; font-size: 0.85rem; padding: 10px; background: white;"
+                                onclick="launchFirmaECFallback()">
+                                <span>💻</span> Abrir FirmaEC
+                            </a>
+
+                            <div style="border-top: 1px dashed #bae6fd; margin: 5px 0;"></div>
+
+                            <p style="font-size: 0.75rem; color: #0369a1; font-weight: 600;">Una vez firmado en FirmaEC,
+                                cargue el archivo aquí:</p>
+
+                            <input type="file" id="signedPdfInput" accept="application/pdf" style="display: none;"
+                                onchange="handleSignedPdfUpload(event)">
+                            <button type="button" onclick="document.getElementById('signedPdfInput').click()"
+                                class="btn-primary"
+                                style="width: 100%; background: #0369a1; border: none; padding: 12px; font-weight: 700;">
+                                📂 Cargar y Archivar PDF Firmado
+                            </button>
+                        </div>
+
+                        <p style="font-size: 0.65rem; color: #64748b; margin-top: 10px; line-height: 1.2;">
+                            * El documento se guardará permanentemente en la base de datos institucional del programa.
+                        </p>
+                    </div>
+
+                    <button type="button" onclick="closeSignatureModal()" class="btn-secondary"
+                        style="width: 100%; margin-top: 10px;">Cancelar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal para Cerrar Orden de Patrulla (Subir PDF de Cumplimiento) -->
+    <div id="closeOrderModal" class="modal">
+        <div class="modal-content" style="max-width: 450px;">
+            <div class="modal-header">
+                <h2 class="outfit-font" style="color: var(--primary);">Cerrar Orden de Patrulla</h2>
+                <span class="close-modal" onclick="closeCloseOrderModal()">&times;</span>
+            </div>
+            <div class="modal-body" style="padding: 1.5rem;">
+                <p style="color: #64748b; margin-bottom: 1rem; font-size: 0.9rem;">Para cerrar definitivamente esta
+                    Orden de Patrulla, es de carácter obligatorio adjuntar el archivo PDF escaneado con el
+                    <strong>Cumplimiento de Patrulla</strong> debidamente firmado.</p>
+                <form id="closeOrderForm" onsubmit="submitCloseOrder(event)">
+                    <div class="form-group full-width">
+                        <label>DOCUMENTO DE CUMPLIMIENTO (PDF)</label>
+                        <input type="file" id="compliancePdfInput" accept="application/pdf" required
+                            style="margin-top: 0.5rem;">
+                    </div>
+                    <div style="display: flex; gap: 1rem; margin-top: 1.5rem;">
+                        <button type="submit" class="btn-primary" style="flex: 1;">Subir y Cerrar Orden</button>
+                        <button type="button" class="btn-secondary" style="flex: 1;"
+                            onclick="closeCloseOrderModal()">Cancelar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Hidden File Inputs -->
+    <input type="file" id="kmzFile" accept=".kmz,.kml" style="display: none;">
+    <input type="file" id="personnelExcelFile" accept=".xlsx,.xls" style="display: none;"
+        onchange="handlePersonnelExcelImport(event)">
+
+    <!-- Control del Sidebar, Mapa e Inicialización Garantizada -->
+    <script>
+        window.addEventListener('load', function () {
+            // ── 1. Forzar estado inicial del DOM ──
+            document.querySelectorAll('.fullscreen-view').forEach(function (v) {
+                v.style.display = 'none';
+            });
+            var tableOverlay = document.querySelector('.table-overlay');
+            if (tableOverlay) tableOverlay.style.display = 'block';
+
+            // ── 2. Inicializar el mapa de forma segura ──
+            if (typeof initMap === 'function') {
+                try {
+                    initMap();
+                } catch (e) {
+                    console.error('Error inicializando mapa desde load:', e);
+                }
+            } else if (typeof L !== 'undefined' && !window.map) {
+                // Fallback de emergencia si script.js no cargó initMap
+                console.warn('Fallback de mapa activado');
+                window.map = L.map('map').setView([-2.1894, -79.8891], 12);
+                L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png').addTo(window.map);
+            }
+
+            // ── 3. Inicializar valores por defecto de Partes al Instante ──
+            if (typeof updateInstantOpsFormDefaults === 'function') {
+                updateInstantOpsFormDefaults();
+            }
+
+            // Forzar redibujado tras un tick
+            setTimeout(function () {
+                var targetMap = window.map || (typeof map !== 'undefined' ? map : null);
+                if (targetMap && targetMap.invalidateSize) {
+                    targetMap.invalidateSize(true);
+                }
+            }, 300);
+        });
+
+        function toggleIntelView(type, btn) {
+            const parent = btn.closest('.sub-menu');
+            if (parent) {
+                parent.querySelectorAll('.sub-menu-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+            }
+
+            const mapTools = document.getElementById('map-tools-item');
+            const tableOverlay = document.querySelector('.table-overlay');
+            const intelForm = document.getElementById('intelFormContainer');
+            const statsContainer = document.getElementById('intelStatsContainer');
+            const mapEl = document.getElementById('map');
+
+            if (type === 'map') {
+                if (mapTools) mapTools.style.display = 'block';
+                if (mapEl) mapEl.style.display = 'block';
+                if (tableOverlay) {
+                    tableOverlay.style.display = 'none';
+                    tableOverlay.classList.remove('full-view');
+                }
+                if (intelForm) intelForm.style.display = 'block';
+                if (statsContainer) statsContainer.style.display = 'none';
+
+                setTimeout(() => {
+                    if (window.map) {
+                        window.map.invalidateSize();
+                        window.map.setView([-2.1894, -79.8891], 13);
+                    }
+                }, 150);
+            } else {
+                if (mapTools) mapTools.style.display = 'none';
+                if (mapEl) mapEl.style.display = 'none';
+                if (tableOverlay) {
+                    tableOverlay.style.display = 'block';
+                    tableOverlay.classList.add('full-view');
+                }
+                if (intelForm) intelForm.style.display = 'none';
+                if (statsContainer) statsContainer.style.display = 'block';
+                if (typeof updateIntelStats === 'function') updateIntelStats();
+            }
+        }
+
+        function toggleSidebarMenu(targetId, btn) {
+            var allBtns = document.querySelectorAll('.sidebar-menu .menu-btn');
+            var allContents = document.querySelectorAll('.sidebar-menu .menu-content');
+            var wasActive = btn.classList.contains('active');
+
+            allBtns.forEach(function (b) { b.classList.remove('active'); });
+            allContents.forEach(function (c) { c.classList.remove('active'); });
+
+            if (!wasActive) {
+                btn.classList.add('active');
+                var target = document.getElementById(targetId);
+                if (target) { target.classList.add('active'); }
+
+                var tableOverlay = document.querySelector('.table-overlay');
+
+                if (targetId === 'inteligencia') {
+                    document.querySelectorAll('.fullscreen-view').forEach(function (v) {
+                        v.style.display = 'none';
+                    });
+
+                    var mapEl = document.getElementById('map');
+                    if (mapEl) mapEl.style.display = 'block';
+
+                    var activeSub = target.querySelector('.sub-menu-btn.active');
+                    if (activeSub) {
+                        toggleIntelView(activeSub.dataset.type, activeSub);
+                    }
+
+                    setTimeout(function () {
+                        var targetMap = window.map || (typeof map !== 'undefined' ? map : null);
+                        if (targetMap) {
+                            targetMap.invalidateSize(true);
+                        }
+                    }, 150);
+                } else {
+                    const mapTools = document.getElementById('map-tools-item');
+                    if (mapTools) mapTools.style.display = 'none';
+
+                    if (tableOverlay) tableOverlay.style.display = 'none';
+                    if (target) {
+                        var activeSub = target.querySelector('.sub-menu-btn.active');
+                        var firstSub = activeSub || target.querySelector('.sub-menu-btn');
+                        if (firstSub && typeof activateSubmenuView === 'function') {
+                            activateSubmenuView(firstSub.dataset.view, firstSub);
+                        } else if (firstSub) {
+                            firstSub.click();
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <script src="script.js"></script>
+</body>
+
+</html>

@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Migración de Datos - grupoDestino y group</title>
+    <style>
+        body { font-family: Arial; padding: 20px; background: #f0f0f0; }
+        .container { max-width: 900px; margin: 0 auto; background: white; padding: 30px; border-radius: 8px; }
+        button { padding: 12px 20px; background: #0ea5e9; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; margin: 10px 5px; }
+        button:hover { background: #0284c7; }
+        .result { margin-top: 20px; padding: 20px; border-radius: 4px; font-family: monospace; }
+        .success { background: #d1fae5; color: #065f46; border: 1px solid #a7f3d0; }
+        .info { background: #dbeafe; color: #1e40af; border: 1px solid #bfdbfe; }
+        .error { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
+        input { padding: 8px; margin: 5px; }
+        h3 { color: #0f172a; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Migración de Datos - Asignar campos faltantes</h1>
+        <p>Este script leerá todos los datos del servidor y asignará grupoDestino y group/rotacion automáticamente.</p>
+        
+        <h3>Diagnóstico primero:</h3>
+        <button onclick="diagnosisData()">Diagnóstico de datos</button>
+        <button onclick="migrateData()">Ejecutar Migración</button>
+        
+        <div id="result"></div>
+    </div>
+
+    <script>
+        async function diagnosisData() {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = 'Consultando servidor...';
+            
+            try {
+                const response = await fetch('http://localhost:3000/api/personnel');
+                const data = await response.json();
+                
+                if (!data.personnel || data.personnel.length === 0) {
+                    resultDiv.innerHTML = '<div class="result error">No hay personal en el servidor</div>';
+                    return;
+                }
+                
+                const personnel = data.personnel;
+                const stats = {
+                    total: personnel.length,
+                    conGrupoDestino: personnel.filter(p => p.grupoDestino).length,
+                    sinGrupoDestino: personnel.filter(p => !p.grupoDestino).length,
+                    conGroup: personnel.filter(p => p.group).length,
+                    sinGroup: personnel.filter(p => !p.group).length,
+                    conRotacion: personnel.filter(p => p.rotacion).length,
+                    sinRotacion: personnel.filter(p => !p.rotacion).length
+                };
+                
+                // Muestreo de datos
+                const sample = personnel[0] || {};
+                
+                resultDiv.innerHTML = `
+                    <div class="result info">
+                        <h4>DIAGNÓSTICO DE DATOS</h4>
+                        <pre>${JSON.stringify(stats, null, 2)}</pre>
+                        <hr>
+                        <h4>Muestra del primer registro:</h4>
+                        <pre>${JSON.stringify(sample, null, 2)}</pre>
+                    </div>
+                `;
+            } catch (e) {
+                resultDiv.innerHTML = `<div class="result error">Error: ${e.message}</div>`;
+            }
+        }
+        
+        async function migrateData() {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = 'Procesando migración...';
+            
+            try {
+                const response = await fetch('http://localhost:3000/api/migrate-personnel', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({action: 'addMissingFields'})
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    resultDiv.innerHTML = `
+                        <div class="result success">
+                            <h4>MIGRACION COMPLETADA</h4>
+                            <pre>${JSON.stringify(result.stats, null, 2)}</pre>
+                            <br>
+                            <strong>Próximo paso:</strong> Recarga la aplicacion en http://localhost:3000
+                        </div>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `<div class="result error">Error: ${result.message}</div>`;
+                }
+            } catch (e) {
+                resultDiv.innerHTML = `<div class="result error">Error: ${e.message}</div>`;
+            }
+        }
+    </script>
+</body>
+</html>

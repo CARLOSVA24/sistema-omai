@@ -1,0 +1,66 @@
+﻿# ============================================
+#   .gitignore — SISTEMA OMAI GT 100.51
+# ============================================
+
+# BASE DE DATOS (NUNCA SUBIR — contiene datos de personal y contrasenyas)
+database.sqlite
+*.sqlite
+*.db
+SOPORTE_TECNICO/database.sqlite
+
+# NODE.JS (se reinstala con npm install)
+node_modules/
+SOPORTE_TECNICO/node_modules/
+SISTEMA_BACKEND/node_modules/
+npm-debug.log*
+
+# EJECUTABLE COMPILADO (46MB — demasiado grande para GitHub)
+*.exe
+
+# LOGS DEL SERVIDOR
+*.log
+server_err.log
+server_out.log
+
+# ARCHIVOS TEMPORALES Y DE TRABAJO
+frag_temp/
+temp_docx_extract/
+temp_test_node/
+scratch/
+scratch.txt
+frag.zip
+
+# AMBIENTE VIRTUAL PYTHON
+.venv/
+__pycache__/
+*.pyc
+
+# ARCHIVOS OBSOLETOS
+_ARCHIVADO_OBSOLETO/
+SOPORTE_TECNICO/index_ORIGINAL.html
+SOPORTE_TECNICO/INICIAR_PROGRAMA_ORIGINAL.bat
+SISTEMA_BACKEND/_ARCHIVADO_OBSOLETO/
+
+# ARCHIVOS DE TEST
+test_out.pptx
+test_personnel.xlsx
+test_login.png
+
+# ARCHIVOS GRANDES DE TEXTO
+SISTEMA_BACKEND/clean_ordpat.txt
+SISTEMA_BACKEND/extracted_ordpat.txt
+SISTEMA_BACKEND/extracted_ordpat_format.txt
+SISTEMA_BACKEND/final_ordpat.txt
+SISTEMA_BACKEND/frag_clean_text.txt
+SISTEMA_BACKEND/xlsx_output.txt
+
+# SCRIPTS TEMPORALES DE PARCHE
+tmp_patch_render_tables.py
+fix_distribution_table.py
+fix_personnel_table.py
+fix_render_functions.py
+
+# SISTEMA OPERATIVO
+.DS_Store
+Thumbs.db
+desktop.ini
