@@ -7,6 +7,7 @@ const path = require('path');
 const os = require('os');
 const http = require('http');
 const { Server } = require('socket.io');
+const { exec } = require('child_process');
 
 const app = express();
 const server = http.createServer(app);
@@ -70,14 +71,33 @@ function isLocalOrPrivateOrigin(origin) {
     return false;
 }
 
+// ─── DOMINIOS PÚBLICOS PERMITIDOS (Cloudflare Tunnel y ngrok) ───────────────────────
+function isAllowedPublicOrigin(origin) {
+    try {
+        const url = new URL(origin);
+        const hostname = url.hostname;
+        return hostname.endsWith('.trycloudflare.com') ||
+               hostname.endsWith('.cfargotunnel.com') ||
+               hostname.endsWith('.ngrok-free.dev') ||
+               hostname.endsWith('.ngrok-free.app');
+    } catch (e) {
+        return false;
+    }
+}
+
 const corsOptions = {
     origin: (origin, callback) => {
         // Permitir peticiones sin origin (ej. llamadas de curl, node-fetch o apps de escritorio locales)
         if (!origin) return callback(null, true);
+        // Permitir redes privadas (uso local / LAN)
         if (isLocalOrPrivateOrigin(origin)) {
             return callback(null, true);
         }
-        callback(new Error(`CORS: Origen no permitido por la política de red privada: ${origin}`));
+        // Permitir dominios públicos autorizados
+        if (isAllowedPublicOrigin(origin)) {
+            return callback(null, true);
+        }
+        callback(new Error(`CORS: Origen no permitido: ${origin}`));
     },
     methods: ['GET', 'POST'],
     allowedHeaders: ['Content-Type', 'x-socket-id']
@@ -535,6 +555,24 @@ app.get('/api/activity-logs', (req, res) => {
 
 app.get('/api/active-users', (req, res) => {
     res.json(Array.from(activeUsers.values()));
+});
+
+// Webhook para enlazar GitHub con el servidor local expuesto por el puente (ngrok)
+app.post('/api/github-webhook', (req, res) => {
+    console.log('[Webhook GitHub] Petición recibida desde GitHub.');
+    
+    // Ejecutar git pull en la carpeta raíz de forma segura
+    exec('git pull origin master', { cwd: rootPath }, (error, stdout, stderr) => {
+        if (error) {
+            console.error(`[Webhook GitHub Error] No se pudo hacer git pull: ${error.message}`);
+            return res.status(500).json({ success: false, error: error.message });
+        }
+        console.log(`[Webhook GitHub Success] git pull ejecutado correctamente:\n${stdout}`);
+        if (stderr) {
+            console.warn(`[Webhook GitHub Warning] Advertencia durante git pull:\n${stderr}`);
+        }
+        res.json({ success: true, message: 'Código actualizado correctamente desde GitHub.', output: stdout });
+    });
 });
 
 // WebSocket Events
