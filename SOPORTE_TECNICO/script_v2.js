@@ -4964,20 +4964,6 @@ function handlePersonnelExcelImport(e) {
 
     reader.readAsArrayBuffer(file);
 }
-// ----------------------------------------------------
-
-function getIntensity(type) {
-    // Definir importancia del delito para el mapa de calor
-    if (!type) return 0.5;
-    const t = type.toLowerCase();
-    if (t.includes('sicariato') || t.includes('muerte')) return 1.0;
-    if (t.includes('atentado')) return 0.9;
-    if (t.includes('extorsion') || t.includes('secuestro') || t.includes('narcotrafico')) return 0.8;
-    if (t.includes('droga')) return 0.7;
-    if (t.includes('robo') || t.includes('armas') || t.includes('contrabando')) return 0.6;
-    return 0.5;
-}
-
 function refreshHeatLayer() {
     if (typeof map === 'undefined' || !map) return;
     if (typeof L.heatLayer !== 'function') {
@@ -4990,6 +4976,12 @@ function refreshHeatLayer() {
         if (layer && map.hasLayer(layer)) map.removeLayer(layer);
     });
 
+    const crimesData = Array.isArray(crimes)
+        ? crimes
+        : (crimes && typeof crimes === 'object')
+            ? Object.values(crimes)
+            : [];
+
     // Tipos de delitos + Operaciones
     const types = Object.keys(CRIME_COLORS);
 
@@ -4997,12 +4989,28 @@ function refreshHeatLayer() {
         // Combinar crímenes y operaciones para el calor si es tipo operacion
         let dataToHeat = [];
         if (type === 'operacion') {
-            dataToHeat = instantOps
+            const opsData = Array.isArray(instantOps)
+                ? instantOps
+                : (instantOps && typeof instantOps === 'object')
+                    ? Object.values(instantOps)
+                    : [];
+            dataToHeat = opsData
                 .filter(op => op.lat != null && op.lng != null && op.lat !== '' && op.lng !== '' && !isNaN(parseFloat(op.lat)) && !isNaN(parseFloat(op.lng)))
                 .map(op => [parseFloat(op.lat), parseFloat(op.lng), 0.8]);
         } else {
-            dataToHeat = crimes
-                .filter(c => c.type === type && c.lat != null && c.lng != null && c.lat !== '' && c.lng !== '' && !isNaN(parseFloat(c.lat)) && !isNaN(parseFloat(c.lng)))
+            dataToHeat = crimesData
+                .filter(c => {
+                    if (!c) return false;
+                    const cType = (c.type || '').toLowerCase().trim();
+                    const targetType = type.toLowerCase().trim();
+                    if (cType !== targetType) return false;
+
+                    // Aplicar filtros de la UI para mantener el mapa de calor sincronizado
+                    if (incidentFilters.type && c.type && !c.type.toLowerCase().includes(incidentFilters.type.toLowerCase())) return false;
+                    if (incidentFilters.district && c.district !== incidentFilters.district) return false;
+
+                    return c.lat != null && c.lng != null && c.lat !== '' && c.lng !== '' && !isNaN(parseFloat(c.lat)) && !isNaN(parseFloat(c.lng));
+                })
                 .map(c => [parseFloat(c.lat), parseFloat(c.lng), parseFloat(c.intensity || getIntensity(c.type) || 0.5)]);
         }
 
@@ -5035,11 +5043,34 @@ function refreshMarkers() {
     // Limpiar objeto de referencias
     for (let id in incidentMarkers) delete incidentMarkers[id];
 
-    crimes.forEach(crime => {
+    const crimesData = Array.isArray(crimes)
+        ? crimes
+        : (crimes && typeof crimes === 'object')
+            ? Object.values(crimes)
+            : [];
+
+    const opsData = Array.isArray(instantOps)
+        ? instantOps
+        : (instantOps && typeof instantOps === 'object')
+            ? Object.values(instantOps)
+            : [];
+
+    crimesData.forEach(crime => {
+        if (!crime) return;
+
+        // Aplicar filtros de la UI para mantener los marcadores sincronizados
+        if (incidentFilters.type && crime.type && !crime.type.toLowerCase().includes(incidentFilters.type.toLowerCase())) return;
+        if (incidentFilters.district && crime.district !== incidentFilters.district) return;
+
+        if (crime.lat == null || crime.lng == null || crime.lat === '' || crime.lng === '' || isNaN(parseFloat(crime.lat)) || isNaN(parseFloat(crime.lng))) return;
+
+        const crimeLat = parseFloat(crime.lat);
+        const crimeLng = parseFloat(crime.lng);
+
         // Marcador con área de clic mejorada y PANE específico para estar SOBRE el mapa de calor
-        const marker = L.circleMarker([crime.lat, crime.lng], {
+        const marker = L.circleMarker([crimeLat, crimeLng], {
             radius: 10, // Aumentado un poco más
-            fillColor: CRIME_COLORS[crime.type] || '#fff',
+            fillColor: CRIME_COLORS[(crime.type || '').toLowerCase().trim()] || '#fff',
             color: '#fff',
             weight: 2,
             opacity: 1,
@@ -5049,7 +5080,7 @@ function refreshMarkers() {
             bubblingMouseEvents: false
         });
 
-        const crimeColor = CRIME_COLORS[crime.type] || '#38bdf8';
+        const crimeColor = CRIME_COLORS[(crime.type || '').toLowerCase().trim()] || '#38bdf8';
         const crimeEmoji = (() => {
             const t = (crime.type || '').toLowerCase();
             if (t.includes('sicariato') || t.includes('muerte')) return '💀';
@@ -5073,7 +5104,7 @@ function refreshMarkers() {
                 <div style="padding: 12px; background: #1e293b; color: #f1f5f9; border-top: 1px solid rgba(255,255,255,0.1);">
                     <p style="margin: 0 0 6px 0; font-size: 0.85rem;"><b style="color: #94a3b8;">Distrito:</b> ${crime.district || 'S/N'}</p>
                     <p style="margin: 0 0 6px 0; font-size: 0.85rem;"><b style="color: #94a3b8;">Fecha:</b> ${new Date(crime.date).toLocaleString()}</p>
-                    <p style="margin: 0 0 8px 0; font-size: 0.85rem;"><b style="color: #94a3b8;">Coord:</b> ${crime.lat.toFixed(5)}, ${crime.lng.toFixed(5)}</p>
+                    <p style="margin: 0 0 8px 0; font-size: 0.85rem;"><b style="color: #94a3b8;">Coord:</b> ${crimeLat.toFixed(5)}, ${crimeLng.toFixed(5)}</p>
                     <hr style="margin: 8px 0; border: 0; border-top: 1px solid rgba(255,255,255,0.1);">
                     <p style="margin: 0 0 12px 0; font-size: 0.85rem; line-height: 1.4;"><b style="color: #94a3b8;">Observación:</b><br>${crime.observation || 'Sin observaciones'}</p>
                     <button onclick="editCrime('${crime.id}')" style="width: 100%; padding: 8px; background: #f59e0b; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 0.8rem; font-weight: 700; transition: background 0.2s; display: flex; align-items: center; justify-content: center; gap: 8px;">
@@ -5095,9 +5126,13 @@ function refreshMarkers() {
     });
 
     // Añadir marcadores de operaciones
-    instantOps.forEach(op => {
-        if (op.lat == null || op.lng == null || isNaN(op.lat) || isNaN(op.lng)) return;
-        const marker = L.circleMarker([op.lat, op.lng], {
+    opsData.forEach(op => {
+        if (op.lat == null || op.lng == null || op.lat === '' || op.lng === '' || isNaN(parseFloat(op.lat)) || isNaN(parseFloat(op.lng))) return;
+        
+        const opLat = parseFloat(op.lat);
+        const opLng = parseFloat(op.lng);
+
+        const marker = L.circleMarker([opLat, opLng], {
             radius: 11,
             fillColor: CRIME_COLORS.operacion,
             color: '#fff',
@@ -13319,7 +13354,14 @@ window.triggerResilientMapResize = function () {
 
     // Ejecutar en tiempos diferidos para asegurar transiciones y repaints
     setTimeout(() => { if (targetMap) targetMap.invalidateSize(true); }, 100);
-    setTimeout(() => { if (targetMap) targetMap.invalidateSize(true); }, 300);
+    setTimeout(() => { 
+        if (targetMap) {
+            targetMap.invalidateSize(true);
+            // Asegurar refresco de marcadores y capa de calor al redimensionar/mostrar mapa
+            if (typeof refreshHeatLayer === 'function') refreshHeatLayer();
+            if (typeof refreshMarkers === 'function') refreshMarkers();
+        }
+    }, 300);
     setTimeout(() => { if (targetMap) targetMap.invalidateSize(true); }, 600);
     setTimeout(() => { if (targetMap) targetMap.invalidateSize(true); }, 1200);
 };
