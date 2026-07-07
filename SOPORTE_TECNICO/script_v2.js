@@ -4998,10 +4998,12 @@ function refreshHeatLayer() {
         let dataToHeat = [];
         if (type === 'operacion') {
             dataToHeat = instantOps
-                .filter(op => op.lat != null && op.lng != null && !isNaN(op.lat) && !isNaN(op.lng))
-                .map(op => [op.lat, op.lng, 0.8]);
+                .filter(op => op.lat != null && op.lng != null && op.lat !== '' && op.lng !== '' && !isNaN(parseFloat(op.lat)) && !isNaN(parseFloat(op.lng)))
+                .map(op => [parseFloat(op.lat), parseFloat(op.lng), 0.8]);
         } else {
-            dataToHeat = crimes.filter(c => c.type === type).map(c => [c.lat, c.lng, c.intensity]);
+            dataToHeat = crimes
+                .filter(c => c.type === type && c.lat != null && c.lng != null && c.lat !== '' && c.lng !== '' && !isNaN(parseFloat(c.lat)) && !isNaN(parseFloat(c.lng)))
+                .map(c => [parseFloat(c.lat), parseFloat(c.lng), parseFloat(c.intensity || getIntensity(c.type) || 0.5)]);
         }
 
         if (dataToHeat.length > 0) {
