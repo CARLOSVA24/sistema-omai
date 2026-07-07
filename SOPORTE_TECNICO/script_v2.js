@@ -11109,14 +11109,17 @@ window.addPostRow = function (tbodyId, data = { name: '', schedule: '', funcion:
     const tbody = document.getElementById(tbodyId);
     if (!tbody) return;
 
-    // Obtener funciones únicas de ECHO (considerar OPERATIVO/undefined como operativo)
-    const echoPersonnel = (typeof personnel !== 'undefined' ? personnel : []).filter(p => {
+    // Obtener pool conforme a la sección (Puestos Fijos -> CODESC, Puestos de Apoyo -> GT ECHO)
+    const isFixed = (tbodyId === 'fixedPostsBody');
+    const targetPool = (typeof personnel !== 'undefined' ? personnel : []).filter(p => {
         if (isDesignatedOtherFunction(p.funcion)) return false;
-        const dest = (p.grupoDestino || 'GT ECHO').toUpperCase();
         const cond = (p.condition || 'OPERATIVO').toUpperCase();
-        return !dest.includes('CODESC') && cond !== 'BAJA' && cond !== 'INACTIVO';
+        if (cond === 'BAJA' || cond === 'INACTIVO') return false;
+        
+        const belongsToCodesc = window.isBelongingToUnit(p, 'CODESC');
+        return isFixed ? belongsToCodesc : !belongsToCodesc;
     });
-    const functions = [...new Set(echoPersonnel.map(p => (p.funcion || 'OPERATIVO').toUpperCase()))].sort();
+    const functions = [...new Set(targetPool.map(p => (p.funcion || 'OPERATIVO').toUpperCase()))].sort();
 
     const row = document.createElement('tr');
     row.className = 'post-config-row';
@@ -11220,13 +11223,15 @@ window.updateRowPersonnelCounts = function (row) {
         triggerLabel.style.color = 'var(--accent-primary)';
     }
 
-    // Pool GT ECHO: excluir CODESC, no exigir condition === 'OPERATIVO' de forma estricta
-    // (muchos registros no tienen ese campo definido — se asume OPERATIVO por defecto)
+    // Determinar pool conforme a la sección (Puestos Fijos -> CODESC, Puestos de Apoyo -> GT ECHO)
+    const isFixed = row.closest('tbody')?.id === 'fixedPostsBody';
     let availablePool = (typeof personnel !== 'undefined' ? personnel : []).filter(p => {
         if (isDesignatedOtherFunction(p.funcion)) return false;
-        const dest = (p.grupoDestino || 'GT ECHO').toUpperCase();
         const cond = (p.condition || 'OPERATIVO').toUpperCase();
-        return !dest.includes('CODESC') && cond !== 'BAJA' && cond !== 'INACTIVO';
+        if (cond === 'BAJA' || cond === 'INACTIVO') return false;
+        
+        const belongsToCodesc = window.isBelongingToUnit(p, 'CODESC');
+        return isFixed ? belongsToCodesc : !belongsToCodesc;
     });
 
     if (selectedFunctions.length > 0) {
@@ -11248,10 +11253,10 @@ window.updateRowPersonnelCounts = function (row) {
             countsDiv.textContent = `Pool disponible: ${ofCount} OF / ${trCount} TR`;
         }
     } else {
-        // Sin función seleccionada: mostrar total del pool GT ECHO
+        // Sin función seleccionada: mostrar total del pool correspondiente
         const ofCount = availablePool.filter(p => ofGrades.includes((p.grade || '').toUpperCase())).length;
         const trCount = availablePool.filter(p => !ofGrades.includes((p.grade || '').toUpperCase())).length;
-        countsDiv.textContent = `Pool GT ECHO: ${ofCount} OF / ${trCount} TR`;
+        countsDiv.textContent = `Pool ${isFixed ? 'CODESC' : 'GT ECHO'}: ${ofCount} OF / ${trCount} TR`;
     }
     if (window.syncMultiSelectDropdowns) window.syncMultiSelectDropdowns();
 };
