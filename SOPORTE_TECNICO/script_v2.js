@@ -13665,38 +13665,55 @@ window.populateCodescDailyUnits = function () {
         activeUnits.map(u => `<option value="${u.id}">${u.name || u.id}</option>`).join('');
 };
 
+window.addCodescDailyFormDistributionRow = function (concept = '', count = 0) {
+    const tbody = document.getElementById('codescDailyFormDistributionBody');
+    if (!tbody) return;
+    
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+        <td style="padding: 4px 0;">
+            <input type="text" class="dist-concept" value="${concept}" placeholder="Ej: FRAPAL, GUARDIA..." style="width: 100%; border: 1px solid #cbd5e1; padding: 4px 6px; border-radius: 4px; font-size: 0.8rem; font-weight: 600; color: #1e293b;">
+        </td>
+        <td style="padding: 4px 0 4px 8px;">
+            <input type="number" class="dist-count" value="${count}" min="0" style="width: 100%; border: 1px solid #cbd5e1; padding: 4px 6px; border-radius: 4px; font-size: 0.8rem; font-weight: 600; text-align: center; color: #1e293b;">
+        </td>
+        <td style="padding: 4px 0 4px 4px; text-align: center;">
+            <button type="button" onclick="this.closest('tr').remove();" style="border: none; background: transparent; color: #ef4444; font-size: 0.95rem; cursor: pointer; padding: 0;">🗑️</button>
+        </td>
+    `;
+    tbody.appendChild(tr);
+};
+
 window.autoFillCodescDailyPersonnel = function () {
     const select = document.getElementById('codescDailyUnit');
     if (!select || !select.value) return;
     const unitId = select.value;
+
+    const tbody = document.getElementById('codescDailyFormDistributionBody');
+    if (!tbody) return;
+    tbody.innerHTML = '';
 
     const unitPersonnel = (typeof personnel !== 'undefined' ? personnel : []).filter(p => {
         if (isDesignatedOtherFunction(p.funcion)) return false;
         return window.resolveOrgUnitId(p.grupoDestino) === unitId;
     });
 
-    const total = unitPersonnel.length;
-    const present = unitPersonnel.filter(p => {
-        const cond = String(p.condicion || p.condition || 'OPERATIVO').trim().toUpperCase();
-        return cond === 'OPERATIVO';
-    }).length;
+    // Agrupar por función y contar
+    const functionCounts = {};
+    unitPersonnel.forEach(p => {
+        const f = (p.funcion || 'OPERATIVO').toUpperCase().trim();
+        functionCounts[f] = (functionCounts[f] || 0) + 1;
+    });
 
-    const franco = unitPersonnel.filter(p => {
-        const cond = String(p.condicion || p.condition || 'OPERATIVO').trim().toUpperCase();
-        return cond === 'FRANCO';
-    }).length;
-
-    const others = total - present - franco;
-
-    const elTotal = document.getElementById('codescDailyTotal');
-    const elPresent = document.getElementById('codescDailyPresent');
-    const elFranco = document.getElementById('codescDailyFranco');
-    const elOthers = document.getElementById('codescDailyOthers');
-
-    if (elTotal) elTotal.value = total;
-    if (elPresent) elPresent.value = present;
-    if (elFranco) elFranco.value = franco;
-    if (elOthers) elOthers.value = others;
+    // Rellenar filas en la tabla del formulario
+    Object.entries(functionCounts).forEach(([fn, count]) => {
+        window.addCodescDailyFormDistributionRow(fn, count);
+    });
+    
+    // Si está vacío, agregar una fila en blanco por comodidad
+    if (Object.keys(functionCounts).length === 0) {
+        window.addCodescDailyFormDistributionRow('', 0);
+    }
 };
 
 window.saveCodescDailyRecord = async function (e) {
@@ -13717,15 +13734,29 @@ window.saveCodescDailyRecord = async function (e) {
     const deadlineDate = new Date(omaiDay + 'T14:00:00');
     const status = (now <= deadlineDate) ? 'A Tiempo' : 'Fuera de Tiempo';
 
+    // Recopilar distribución táctica de la tabla del formulario
+    const distRows = [];
+    let totalSum = 0;
+    document.querySelectorAll('#codescDailyFormDistributionBody tr').forEach(row => {
+        const conceptInput = row.querySelector('.dist-concept');
+        const countInput = row.querySelector('.dist-count');
+        if (conceptInput && countInput) {
+            const concept = conceptInput.value.trim();
+            const count = parseInt(countInput.value) || 0;
+            if (concept) {
+                distRows.push({ concept: concept, count: count });
+                totalSum += count;
+            }
+        }
+    });
+
     const record = {
         id: recordId,
         omaiDay: omaiDay,
         unitId: unitId,
         unitName: unitName,
-        total: parseInt(document.getElementById('codescDailyTotal').value) || 0,
-        present: parseInt(document.getElementById('codescDailyPresent').value) || 0,
-        franco: parseInt(document.getElementById('codescDailyFranco').value) || 0,
-        others: parseInt(document.getElementById('codescDailyOthers').value) || 0,
+        total: totalSum,
+        distribution: distRows,
         novedades: document.getElementById('codescDailyNovedades').value.trim(),
         submittedAt: now.toISOString(),
         status: status
@@ -13756,10 +13787,8 @@ window.saveCodescDailyRecord = async function (e) {
 window.clearCodescDailyForm = function () {
     document.getElementById('codescDailyEditId').value = '';
     document.getElementById('codescDailyUnit').value = '';
-    document.getElementById('codescDailyTotal').value = '';
-    document.getElementById('codescDailyPresent').value = '';
-    document.getElementById('codescDailyFranco').value = '';
-    document.getElementById('codescDailyOthers').value = '';
+    const tbody = document.getElementById('codescDailyFormDistributionBody');
+    if (tbody) tbody.innerHTML = '';
     document.getElementById('codescDailyNovedades').value = '';
     
     window.setDefaultCodescDailyOmaiDate();
@@ -13775,11 +13804,21 @@ window.editCodescDailyRecord = function (id) {
     document.getElementById('codescDailyEditId').value = record.id;
     document.getElementById('codescDailyOmaiDate').value = record.omaiDay;
     document.getElementById('codescDailyUnit').value = record.unitId;
-    document.getElementById('codescDailyTotal').value = record.total;
-    document.getElementById('codescDailyPresent').value = record.present;
-    document.getElementById('codescDailyFranco').value = record.franco;
-    document.getElementById('codescDailyOthers').value = record.others;
     document.getElementById('codescDailyNovedades').value = record.novedades || '';
+
+    // Cargar distribución dinámica
+    const tbody = document.getElementById('codescDailyFormDistributionBody');
+    if (tbody) {
+        tbody.innerHTML = '';
+        if (record.distribution && Array.isArray(record.distribution)) {
+            record.distribution.forEach(d => {
+                window.addCodescDailyFormDistributionRow(d.concept, d.count);
+            });
+        } else {
+            // Compatibilidad hacia atrás
+            window.addCodescDailyFormDistributionRow('TOTAL', record.total || 0);
+        }
+    }
 
     document.getElementById('codescDailyUnit').disabled = true;
     document.getElementById('codescDailyOmaiDate').disabled = true;
@@ -13833,6 +13872,18 @@ window.renderCodescDailyRegistryTable = function () {
         const statusBgColor = (r.status === 'A Tiempo') ? '#f0fdf4' : '#fef2f2';
         const statusBorder = (r.status === 'A Tiempo') ? '1px solid #bbf7d0' : '1px solid #fee2e2';
 
+        // Detalle de la distribución táctica como etiquetas
+        let distHtml = '';
+        if (r.distribution && Array.isArray(r.distribution)) {
+            distHtml = r.distribution.map(d => `
+                <span style="display:inline-block; background:#f1f5f9; color:#475569; padding:2px 6px; border-radius:4px; font-size:0.75rem; font-weight:700; margin-right:4px; margin-bottom:4px; border: 1px solid #e2e8f0;">
+                    ${d.concept}: ${String(d.count).padStart(2, '0')}
+                </span>
+            `).join('');
+        } else {
+            distHtml = `<span style="color:#94a3b8; font-style:italic;">Total: ${r.total}</span>`;
+        }
+
         const tr = document.createElement('tr');
         tr.style.borderBottom = '1px solid #e2e8f0';
         
@@ -13840,9 +13891,7 @@ window.renderCodescDailyRegistryTable = function () {
             <td style="padding: 10px 12px; font-weight: 700; color: #1e293b;">${r.omaiDay}</td>
             <td style="padding: 10px 12px; font-weight: 600; color: #475569;">${r.unitName}</td>
             <td style="padding: 10px 12px; text-align: center; font-weight: 700; color: #1e293b;">${r.total}</td>
-            <td style="padding: 10px 12px; text-align: center; color: #15803d; font-weight: 600;">${r.present}</td>
-            <td style="padding: 10px 12px; text-align: center; color: #2563eb; font-weight: 600;">${r.franco}</td>
-            <td style="padding: 10px 12px; text-align: center; color: #64748b;">${r.others}</td>
+            <td style="padding: 10px 12px;">${distHtml}</td>
             <td style="padding: 10px 12px; max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${r.novedades || ''}">${r.novedades || '<span style="color:#cbd5e1; font-style:italic;">Ninguna</span>'}</td>
             <td style="padding: 10px 12px; color: #64748b; font-size: 0.75rem;">${localTimeStr}</td>
             <td style="padding: 10px 12px; text-align: center;">
@@ -13865,17 +13914,24 @@ window.exportCodescDailyRegistryExcel = function () {
         return;
     }
 
-    const data = codescDailyRegistry.map(r => ({
-        "Día OMAI": r.omaiDay,
-        "Reparto / Unidad": r.unitName,
-        "Total Personal": r.total,
-        "Operativos / Presentes": r.present,
-        "Franco": r.franco,
-        "Otros": r.others,
-        "Novedades / Observaciones": r.novedades || 'Ninguna',
-        "Fecha Registro": new Date(r.submittedAt).toLocaleString(),
-        "Estado de Registro": r.status
-    }));
+    const data = codescDailyRegistry.map(r => {
+        let distText = '';
+        if (r.distribution && Array.isArray(r.distribution)) {
+            distText = r.distribution.map(d => `${d.concept}: ${d.count}`).join(' | ');
+        } else {
+            distText = `Total: ${r.total}`;
+        }
+        
+        return {
+            "Día OMAI": r.omaiDay,
+            "Reparto / Unidad": r.unitName,
+            "Total Personal": r.total,
+            "Distribución Táctica": distText,
+            "Novedades / Observaciones": r.novedades || 'Ninguna',
+            "Fecha Registro": new Date(r.submittedAt).toLocaleString(),
+            "Estado de Registro": r.status
+        };
+    });
 
     const worksheet = XLSX.utils.json_to_sheet(data);
     const workbook = XLSX.utils.book_new();

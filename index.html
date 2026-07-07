@@ -5657,23 +5657,23 @@ PARROQUIA/SECTOR: </textarea>
                                 </select>
                             </div>
 
-                            <div style="background: #f8fafc; padding: 10px; border-radius: 8px; border: 1px solid #f1f5f9; display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-                                <div>
-                                    <label style="display: block; font-size: 0.7rem; font-weight: 700; color: #64748b; margin-bottom: 2px;">Total Personal:</label>
-                                    <input type="number" id="codescDailyTotal" required min="0" style="width: 100%; padding: 6px 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.85rem; font-weight: 600; color: #1e293b;">
-                                </div>
-                                <div>
-                                    <label style="display: block; font-size: 0.7rem; font-weight: 700; color: #64748b; margin-bottom: 2px;">Presentes/Operativos:</label>
-                                    <input type="number" id="codescDailyPresent" required min="0" style="width: 100%; padding: 6px 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.85rem; font-weight: 600; color: #1e293b;">
-                                </div>
-                                <div>
-                                    <label style="display: block; font-size: 0.7rem; font-weight: 700; color: #64748b; margin-bottom: 2px;">Franco:</label>
-                                    <input type="number" id="codescDailyFranco" required min="0" style="width: 100%; padding: 6px 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.85rem; font-weight: 600; color: #1e293b;">
-                                </div>
-                                <div>
-                                    <label style="display: block; font-size: 0.7rem; font-weight: 700; color: #64748b; margin-bottom: 2px;">Otros (Comisión/Méd.):</label>
-                                    <input type="number" id="codescDailyOthers" required min="0" style="width: 100%; padding: 6px 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.85rem; font-weight: 600; color: #1e293b;">
-                                </div>
+                            <div style="background: #f8fafc; padding: 12px; border-radius: 8px; border: 1px solid #e2e8f0;">
+                                <label style="display: block; font-size: 0.75rem; font-weight: 700; color: #475569; margin-bottom: 6px;">Distribución / Detalle de Puestos:</label>
+                                <table style="width: 100%; font-size: 0.8rem; margin-bottom: 8px; border-collapse: collapse;">
+                                    <thead>
+                                        <tr style="color: #64748b; font-weight: 700; text-align: left; border-bottom: 1px solid #cbd5e1;">
+                                            <th style="padding-bottom: 4px;">Puesto / Función</th>
+                                            <th style="padding-bottom: 4px; width: 80px; text-align: center;">Personal</th>
+                                            <th style="padding-bottom: 4px; width: 30px;"></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="codescDailyFormDistributionBody">
+                                        <!-- Filas dinámicas (Concepto: Cantidad) -->
+                                    </tbody>
+                                </table>
+                                <button type="button" class="btn-secondary btn-small" onclick="window.addCodescDailyFormDistributionRow('', 0)" style="font-size: 0.7rem; padding: 4px 8px; border-radius: 4px; border: 1px solid #cbd5e1; background: white; cursor: pointer; font-weight: 700; color: #475569; display: block; width: 100%; text-align: center;">
+                                    + Añadir Fila
+                                </button>
                             </div>
 
                             <div>
@@ -5720,9 +5720,7 @@ PARROQUIA/SECTOR: </textarea>
                                         <th style="padding: 10px 12px;">Día OMAI</th>
                                         <th style="padding: 10px 12px;">Reparto</th>
                                         <th style="padding: 10px 12px; text-align: center;">Total</th>
-                                        <th style="padding: 10px 12px; text-align: center;">Operativos</th>
-                                        <th style="padding: 10px 12px; text-align: center;">Franco</th>
-                                        <th style="padding: 10px 12px; text-align: center;">Otros</th>
+                                        <th style="padding: 10px 12px;">Distribución / Detalle</th>
                                         <th style="padding: 10px 12px;">Novedades</th>
                                         <th style="padding: 10px 12px;">Hora Registro</th>
                                         <th style="padding: 10px 12px; text-align: center;">Estado</th>
