@@ -6859,9 +6859,9 @@ PARROQUIA/SECTOR: </textarea>
         /* Botones de vista del mapa - estilo militar premium */
         #map-layer-switcher {
             position: absolute;
-            top: 12px;
+            top: 85px; /* Desplazado hacia abajo para limpiar el header de 70px */
             right: 12px;
-            z-index: 1000;
+            z-index: 1010; /* Por encima de los controles estándar de Leaflet */
             display: none;
             /* Se muestra cuando el mapa está visible */
             background: rgba(15, 23, 42, 0.92);
@@ -6925,6 +6925,14 @@ PARROQUIA/SECTOR: </textarea>
             border: 1px solid rgba(255, 255, 255, 0.2);
             object-fit: cover;
             flex-shrink: 0;
+        }
+
+        /* Desplazar los controles superiores de Leaflet para no solaparse con el header ni el switcher */
+        .leaflet-top {
+            margin-top: 80px !important; /* Desplaza el zoom y los controles izquierdos abajo del header */
+        }
+        .leaflet-top.leaflet-right {
+            margin-top: 170px !important; /* Desplaza el control de capas abajo del switcher de satélite */
         }
     </style>
 
