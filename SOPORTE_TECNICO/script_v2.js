@@ -150,6 +150,7 @@ async function loadAllDataFromServer() {
     vehicles = await serverLoad('gyevehicles', []);
     choferes = await serverLoad('gyechoferes', []);
     externalOrdersMetadata = await serverLoad('externalOrdersMetadata', []);
+    codescDailyRegistry = await serverLoad('codescDailyRegistry', []);
     await window.loadOrgUnits();
 
     // Cargar datos de Planificación Diaria de Operaciones desde el servidor
@@ -335,6 +336,9 @@ if (socket) {
                 localStorage.setItem('gyeDrawnItems', JSON.stringify(data));
                 loadDrawnItems();
             }
+        } else if (key === 'codescDailyRegistry') {
+            codescDailyRegistry = data;
+            if (typeof renderCodescDailyRegistryTable === 'function') renderCodescDailyRegistryTable();
         } else if (key === 'rotationStartDate' || key === 'rotationStartGroup' || key === 'codescReferenceDate' || key === 'codescStartGroup' || key === 'logisticsReferenceDate' || key === 'logisticsStartGroup') {
             if (key === 'rotationStartDate') rotationStartDate = data;
             if (key === 'rotationStartGroup') rotationStartGroup = data;
@@ -836,6 +840,7 @@ var commandPostPersonnel = [];
 var personnelHistory = [];
 var vehicles = [];
 var operationName = localStorage.getItem('operationName') || "S/N";
+var codescDailyRegistry = [];
 var externalOrdersMetadata = [];
 var templatePatrolOrders = [];
 var currentInstantOpsPhotos = [];
@@ -1205,7 +1210,7 @@ function showAppView(viewId) {
         'crimesTableWrapper', 'dashboardOverlay', 'patrolComplianceView', 'adminKeysView', 'aboutView',
         'postDistributionView', 'ordpatEchoView', 'ordpat51View', 'patrolTemplateRegistryView',
         'adminDataManagementView', 'adminActivityView', 'otherFunctionsView', 'adminOrgView',
-        'regimenDiferenciadoView'
+        'regimenDiferenciadoView', 'dailyCodescRegistryView'
     ];
 
     allViews.forEach(id => {
@@ -1263,6 +1268,11 @@ function showAppView(viewId) {
     if (viewId === 'adminOrgView' && typeof renderOrgUnitsAdmin === 'function') renderOrgUnitsAdmin();
     if (viewId === 'postDistributionView') { if (typeof resetPostConfig === 'function') resetPostConfig(); }
     if (viewId === 'patrolTemplateRegistryView' && typeof refreshTemplateRegistry === 'function') refreshTemplateRegistry();
+    if (viewId === 'dailyCodescRegistryView') {
+        populateCodescDailyUnits();
+        renderCodescDailyRegistryTable();
+        setDefaultCodescDailyOmaiDate();
+    }
 }
 
 function activateSubmenuView(viewId, btn, hideForm = false) {
@@ -13611,6 +13621,267 @@ window.resolveOrgUnitId = function (rawVal, rowData = null) {
     // Fallback: si hay GT_ECHO retornar ese, si no el primero activo, si no 'GT_ECHO'
     if (activeUnits.some(u => u.id === 'GT_ECHO')) return 'GT_ECHO';
     return activeUnits.length > 0 ? activeUnits[0].id : 'GT_ECHO';
+};
+
+
+// ==========================================
+// SUBMÓDULO: REGISTRO DIARIO CODESC
+// ==========================================
+
+window.getOmaiDay = function (dateObj) {
+    const d = new Date(dateObj.getTime());
+    const hours = d.getHours();
+    if (hours < 8) {
+        d.setDate(d.getDate() - 1);
+    }
+    return d.toISOString().split('T')[0];
+};
+
+window.setDefaultCodescDailyOmaiDate = function () {
+    const dateInput = document.getElementById('codescDailyOmaiDate');
+    if (dateInput) {
+        const omaiDay = window.getOmaiDay(new Date());
+        dateInput.value = omaiDay;
+        
+        const label = document.getElementById('codescDailyOmaiDateCalculated');
+        if (label) {
+            const now = new Date();
+            const isYesterday = (window.getOmaiDay(now) !== now.toISOString().split('T')[0]);
+            label.textContent = `Calculado: Día OMAI ${omaiDay} (${isYesterday ? 'Periodo de ayer por registrar antes de las 08:00 AM' : 'Período activo actual'})`;
+        }
+    }
+};
+
+window.populateCodescDailyUnits = function () {
+    const select = document.getElementById('codescDailyUnit');
+    if (!select) return;
+    
+    const activeUnits = (window.orgUnits || []).filter(u => 
+        u.status === 'ACTIVE' && 
+        (u.id.toUpperCase().includes('CODESC') || u.name.toUpperCase().includes('CODESC') || u.id.toUpperCase().includes('UT_100.61') || u.name.toUpperCase().includes('100.61'))
+    );
+    
+    select.innerHTML = '<option value="" disabled selected>-- Seleccionar Unidad --</option>' + 
+        activeUnits.map(u => `<option value="${u.id}">${u.name || u.id}</option>`).join('');
+};
+
+window.autoFillCodescDailyPersonnel = function () {
+    const select = document.getElementById('codescDailyUnit');
+    if (!select || !select.value) return;
+    const unitId = select.value;
+
+    const unitPersonnel = (typeof personnel !== 'undefined' ? personnel : []).filter(p => {
+        if (isDesignatedOtherFunction(p.funcion)) return false;
+        return window.resolveOrgUnitId(p.grupoDestino) === unitId;
+    });
+
+    const total = unitPersonnel.length;
+    const present = unitPersonnel.filter(p => {
+        const cond = String(p.condicion || p.condition || 'OPERATIVO').trim().toUpperCase();
+        return cond === 'OPERATIVO';
+    }).length;
+
+    const franco = unitPersonnel.filter(p => {
+        const cond = String(p.condicion || p.condition || 'OPERATIVO').trim().toUpperCase();
+        return cond === 'FRANCO';
+    }).length;
+
+    const others = total - present - franco;
+
+    const elTotal = document.getElementById('codescDailyTotal');
+    const elPresent = document.getElementById('codescDailyPresent');
+    const elFranco = document.getElementById('codescDailyFranco');
+    const elOthers = document.getElementById('codescDailyOthers');
+
+    if (elTotal) elTotal.value = total;
+    if (elPresent) elPresent.value = present;
+    if (elFranco) elFranco.value = franco;
+    if (elOthers) elOthers.value = others;
+};
+
+window.saveCodescDailyRecord = async function (e) {
+    if (e) e.preventDefault();
+    
+    const omaiDay = document.getElementById('codescDailyOmaiDate').value;
+    const unitId = document.getElementById('codescDailyUnit').value;
+    if (!omaiDay || !unitId) {
+        showNotification("Por favor, seleccione el Día OMAI y el Reparto.", "warning");
+        return;
+    }
+
+    const recordId = document.getElementById('codescDailyEditId').value || 'rec_' + Date.now();
+    const unitOption = document.getElementById('codescDailyUnit').options[document.getElementById('codescDailyUnit').selectedIndex];
+    const unitName = unitOption ? unitOption.text : unitId;
+    
+    const now = new Date();
+    const deadlineDate = new Date(omaiDay + 'T14:00:00');
+    const status = (now <= deadlineDate) ? 'A Tiempo' : 'Fuera de Tiempo';
+
+    const record = {
+        id: recordId,
+        omaiDay: omaiDay,
+        unitId: unitId,
+        unitName: unitName,
+        total: parseInt(document.getElementById('codescDailyTotal').value) || 0,
+        present: parseInt(document.getElementById('codescDailyPresent').value) || 0,
+        franco: parseInt(document.getElementById('codescDailyFranco').value) || 0,
+        others: parseInt(document.getElementById('codescDailyOthers').value) || 0,
+        novedades: document.getElementById('codescDailyNovedades').value.trim(),
+        submittedAt: now.toISOString(),
+        status: status
+    };
+
+    const existingIndex = codescDailyRegistry.findIndex(r => r.id === recordId);
+    if (existingIndex !== -1) {
+        const oldRec = codescDailyRegistry[existingIndex];
+        record.submittedAt = oldRec.submittedAt;
+        record.status = oldRec.status;
+        codescDailyRegistry[existingIndex] = record;
+        showNotification("Registro diario actualizado correctamente.");
+    } else {
+        const alreadyExists = codescDailyRegistry.some(r => r.omaiDay === omaiDay && r.unitId === unitId);
+        if (alreadyExists) {
+            showNotification("Ya existe un registro para esta unidad en el Día OMAI seleccionado.", "warning");
+            return;
+        }
+        codescDailyRegistry.push(record);
+        showNotification("Registro diario guardado correctamente.");
+    }
+
+    saveAppState('codescDailyRegistry', JSON.stringify(codescDailyRegistry));
+    window.clearCodescDailyForm();
+    window.renderCodescDailyRegistryTable();
+};
+
+window.clearCodescDailyForm = function () {
+    document.getElementById('codescDailyEditId').value = '';
+    document.getElementById('codescDailyUnit').value = '';
+    document.getElementById('codescDailyTotal').value = '';
+    document.getElementById('codescDailyPresent').value = '';
+    document.getElementById('codescDailyFranco').value = '';
+    document.getElementById('codescDailyOthers').value = '';
+    document.getElementById('codescDailyNovedades').value = '';
+    
+    window.setDefaultCodescDailyOmaiDate();
+    
+    document.getElementById('codescDailyUnit').disabled = false;
+    document.getElementById('codescDailyOmaiDate').disabled = false;
+};
+
+window.editCodescDailyRecord = function (id) {
+    const record = codescDailyRegistry.find(r => r.id === id);
+    if (!record) return;
+
+    document.getElementById('codescDailyEditId').value = record.id;
+    document.getElementById('codescDailyOmaiDate').value = record.omaiDay;
+    document.getElementById('codescDailyUnit').value = record.unitId;
+    document.getElementById('codescDailyTotal').value = record.total;
+    document.getElementById('codescDailyPresent').value = record.present;
+    document.getElementById('codescDailyFranco').value = record.franco;
+    document.getElementById('codescDailyOthers').value = record.others;
+    document.getElementById('codescDailyNovedades').value = record.novedades || '';
+
+    document.getElementById('codescDailyUnit').disabled = true;
+    document.getElementById('codescDailyOmaiDate').disabled = true;
+    
+    showNotification("Modo edición activado. Modifique los campos necesarios.");
+};
+
+window.deleteCodescDailyRecord = function (id) {
+    if (!confirm("¿Está seguro de eliminar este registro diario?")) return;
+
+    codescDailyRegistry = codescDailyRegistry.filter(r => r.id !== id);
+    saveAppState('codescDailyRegistry', JSON.stringify(codescDailyRegistry));
+    window.renderCodescDailyRegistryTable();
+    showNotification("Registro diario eliminado.");
+};
+
+window.renderCodescDailyRegistryTable = function () {
+    const tbody = document.getElementById('codescDailyRegistryTableBody');
+    if (!tbody) return;
+
+    tbody.innerHTML = '';
+    
+    const filterMonth = document.getElementById('filterCodescDailyMonth')?.value || 'ALL';
+    
+    const sortedRecords = [...codescDailyRegistry].sort((a, b) => {
+        return b.omaiDay.localeCompare(a.omaiDay) || a.unitName.localeCompare(b.unitName);
+    });
+
+    const filteredRecords = sortedRecords.filter(r => {
+        if (filterMonth !== 'ALL') {
+            const recMonth = r.omaiDay.split('-')[1];
+            if (recMonth !== filterMonth) return false;
+        }
+        return true;
+    });
+
+    if (filteredRecords.length === 0) {
+        tbody.innerHTML = `<tr>
+            <td colspan="10" style="text-align: center; padding: 2rem; color: #94a3b8; font-style: italic;">
+                No hay registros diarios guardados para el filtro seleccionado.
+            </td>
+        </tr>`;
+        return;
+    }
+
+    filteredRecords.forEach(r => {
+        const regDate = new Date(r.submittedAt);
+        const localTimeStr = regDate.toLocaleDateString() + ' ' + regDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        
+        const statusBadgeColor = (r.status === 'A Tiempo') ? '#22c55e' : '#ef4444';
+        const statusBgColor = (r.status === 'A Tiempo') ? '#f0fdf4' : '#fef2f2';
+        const statusBorder = (r.status === 'A Tiempo') ? '1px solid #bbf7d0' : '1px solid #fee2e2';
+
+        const tr = document.createElement('tr');
+        tr.style.borderBottom = '1px solid #e2e8f0';
+        
+        tr.innerHTML = `
+            <td style="padding: 10px 12px; font-weight: 700; color: #1e293b;">${r.omaiDay}</td>
+            <td style="padding: 10px 12px; font-weight: 600; color: #475569;">${r.unitName}</td>
+            <td style="padding: 10px 12px; text-align: center; font-weight: 700; color: #1e293b;">${r.total}</td>
+            <td style="padding: 10px 12px; text-align: center; color: #15803d; font-weight: 600;">${r.present}</td>
+            <td style="padding: 10px 12px; text-align: center; color: #2563eb; font-weight: 600;">${r.franco}</td>
+            <td style="padding: 10px 12px; text-align: center; color: #64748b;">${r.others}</td>
+            <td style="padding: 10px 12px; max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${r.novedades || ''}">${r.novedades || '<span style="color:#cbd5e1; font-style:italic;">Ninguna</span>'}</td>
+            <td style="padding: 10px 12px; color: #64748b; font-size: 0.75rem;">${localTimeStr}</td>
+            <td style="padding: 10px 12px; text-align: center;">
+                <span style="display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 0.7rem; font-weight: 800; color: ${statusBadgeColor}; background: ${statusBgColor}; border: ${statusBorder};">
+                    ${r.status}
+                </span>
+            </td>
+            <td style="padding: 10px 12px; text-align: center; display: flex; gap: 4px; justify-content: center;">
+                <button onclick="editCodescDailyRecord('${r.id}')" class="btn-action edit" style="padding: 4px 8px; font-size: 0.75rem; border-radius: 4px; border: 1px solid #cbd5e1; background: white; cursor: pointer;" title="Editar">✏️</button>
+                <button onclick="deleteCodescDailyRecord('${r.id}')" class="btn-action delete" style="padding: 4px 8px; font-size: 0.75rem; border-radius: 4px; border: 1px solid #ef4444; background: #fef2f2; color: #ef4444; cursor: pointer;" title="Eliminar">🗑️</button>
+            </td>
+        `;
+        tbody.appendChild(tr);
+    });
+};
+
+window.exportCodescDailyRegistryExcel = function () {
+    if (codescDailyRegistry.length === 0) {
+        showNotification("No hay registros diarios para exportar.", "warning");
+        return;
+    }
+
+    const data = codescDailyRegistry.map(r => ({
+        "Día OMAI": r.omaiDay,
+        "Reparto / Unidad": r.unitName,
+        "Total Personal": r.total,
+        "Operativos / Presentes": r.present,
+        "Franco": r.franco,
+        "Otros": r.others,
+        "Novedades / Observaciones": r.novedades || 'Ninguna',
+        "Fecha Registro": new Date(r.submittedAt).toLocaleString(),
+        "Estado de Registro": r.status
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(data);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Registro Diario CODESC");
+    XLSX.writeFile(workbook, "Registro_Diario_CODESC_OMAI.xlsx");
+    showNotification("Archivo Excel exportado con éxito.");
 };
 
 
