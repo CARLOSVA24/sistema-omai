@@ -11335,27 +11335,27 @@ window.generatePostAssignments = function () {
         });
     };
 
-    // 3. Obtener todas las funciones activadas en la vista para sacar el POOL
-    const allActivatedFunctions = new Set();
-    allConfigPosts.forEach(post => {
+    // 3. Obtener funciones de Puestos Fijos y distribuir el CODESC Pool en ellos
+    const fixedFunctions = new Set();
+    config.fixed.forEach(post => {
         if (post.funciones) {
-            post.funciones.forEach(fn => allActivatedFunctions.add(fn));
+            post.funciones.forEach(fn => fixedFunctions.add(fn.toUpperCase()));
         }
     });
 
-    // 4. Filtrar el personal que pertenezca a estas funciones activadas
-    let matchingPeople = echoPool.filter(p => allActivatedFunctions.has((p.funcion || 'OTRO').toUpperCase()));
-    matchingPeople = sortPersonnelByRank(matchingPeople); // Oficiales primero
+    let matchingCodesc = codescPool.filter(p => fixedFunctions.has((p.funcion || 'OTRO').toUpperCase()));
+    matchingCodesc = sortPersonnelByRank(matchingCodesc);
 
-    // 5. Repartir de forma equitativa y golosa en TODOS los puestos configurados
-    matchingPeople.forEach((p) => {
+    matchingCodesc.forEach((p) => {
         const isOfficer = ofOrder.includes((p.grade || '').toUpperCase());
-
         let bestPost = null;
         let minTypeCount = Infinity;
         let minTotalCount = Infinity;
 
-        allConfigPosts.forEach(post => {
+        config.fixed.forEach(post => {
+            // Solo considerar puestos fijos que incluyan la función del tripulante
+            if (!post.funciones || !post.funciones.map(f => f.toUpperCase()).includes((p.funcion || '').toUpperCase())) return;
+
             let typeCount = 0;
             post.assigned.forEach(ap => {
                 const apIsOfficer = ofOrder.includes((ap.grade || '').toUpperCase());
@@ -11382,7 +11382,54 @@ window.generatePostAssignments = function () {
         }
     });
 
-    // 4. Personal CODESC (Sin función específica asignada, va al reactor)
+    // 4. Obtener funciones de Puestos de Apoyo y distribuir el ECHO Pool en ellos
+    const supportFunctions = new Set();
+    config.support.forEach(post => {
+        if (post.funciones) {
+            post.funciones.forEach(fn => supportFunctions.add(fn.toUpperCase()));
+        }
+    });
+
+    let matchingEcho = echoPool.filter(p => supportFunctions.has((p.funcion || 'OTRO').toUpperCase()));
+    matchingEcho = sortPersonnelByRank(matchingEcho);
+
+    matchingEcho.forEach((p) => {
+        const isOfficer = ofOrder.includes((p.grade || '').toUpperCase());
+        let bestPost = null;
+        let minTypeCount = Infinity;
+        let minTotalCount = Infinity;
+
+        config.support.forEach(post => {
+            // Solo considerar puestos de apoyo que incluyan la función del tripulante
+            if (!post.funciones || !post.funciones.map(f => f.toUpperCase()).includes((p.funcion || '').toUpperCase())) return;
+
+            let typeCount = 0;
+            post.assigned.forEach(ap => {
+                const apIsOfficer = ofOrder.includes((ap.grade || '').toUpperCase());
+                if (apIsOfficer === isOfficer) typeCount++;
+            });
+
+            let totalCount = post.assigned.length;
+
+            if (typeCount < minTypeCount) {
+                minTypeCount = typeCount;
+                minTotalCount = totalCount;
+                bestPost = post;
+            } else if (typeCount === minTypeCount) {
+                if (totalCount < minTotalCount) {
+                    minTotalCount = totalCount;
+                    bestPost = post;
+                }
+            }
+        });
+
+        if (bestPost && !bestPost.assigned.find(ap => ap.id === p.id)) {
+            bestPost.assigned.push(p);
+            assignedIds.add(String(p.id));
+        }
+    });
+
+    // 5. Personal CODESC sobrante (Sin función específica asignada, va al reactor)
     const remainingCodesc = codescPool.filter(p => !assignedIds.has(String(p.id)));
     if (remainingCodesc.length > 0) {
         config.fixed.push({
@@ -11392,7 +11439,7 @@ window.generatePostAssignments = function () {
         });
     }
 
-    // 5. Personal ECHO sobrante (O sin función asignada a puesto)
+    // 6. Personal ECHO sobrante (O sin función asignada a puesto)
     const remainingEcho = echoPool.filter(p => !assignedIds.has(String(p.id)));
     if (remainingEcho.length > 0) {
         config.support.push({
@@ -13589,7 +13636,15 @@ window.getOrgUnitAndDescendants = function (unitId) {
 window.isBelongingToUnit = function (p, targetUnitId) {
     const resolvedDest = window.resolveOrgUnitId(p.grupoDestino);
     const allowed = window.getOrgUnitAndDescendants(targetUnitId);
-    return allowed.includes(resolvedDest);
+    if (allowed.includes(resolvedDest)) return true;
+    
+    // Soporte tolerante: si la subunidad resuelta contiene el ID del target (ej: CODESC_SUR contiene CODESC)
+    const cleanTarget = String(targetUnitId || '').toUpperCase().trim();
+    const cleanResolved = String(resolvedDest || '').toUpperCase().trim();
+    if (cleanTarget && cleanResolved && (cleanResolved.includes(cleanTarget) || cleanTarget.includes(cleanResolved))) {
+        return true;
+    }
+    return false;
 };
 
 // Resuelve de manera robusta y tolerante el ID de una unidad basándose en un valor de texto o fila completa
