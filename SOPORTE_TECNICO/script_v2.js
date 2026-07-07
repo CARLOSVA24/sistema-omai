@@ -4246,7 +4246,7 @@ function renderPersonnelTable(searchTerm = '') {
         return name.includes(search) || unit.includes(search) || funcion.includes(search) || rotacion.includes(search) || idNum.includes(search);
     });
 
-    filtered.forEach(p => {
+    filtered.forEach((p, idx) => {
         const row = document.createElement('tr');
         if (editingPersonnelId === p.id) row.style.background = 'rgba(56, 189, 248, 0.1)';
 
@@ -4285,15 +4285,15 @@ function renderPersonnelTable(searchTerm = '') {
             : `<span style="color: #94a3b8; font-size: 0.8rem; font-weight: 600;">N/A</span>`;
 
         row.innerHTML = `
+            <td style="text-align:center; color:#94a3b8; font-size:0.75rem; font-weight:700;">${idx + 1}</td>
             <td style="${rowColorStyle}">${p.grade}</td>
             <td style="${rowColorStyle}">${p.specialty || 'S/N'}</td>
             <td style="${rowColorStyle}">${p.name}</td>
             <td style="${rowColorStyle}">${p.idNum}</td>
             <td style="${rowColorStyle}">${p.unit}</td>
-            <td style="${rowColorStyle}">${p.contact || 'S/N'}</td>
             <td style="text-align: center; vertical-align: middle;">${badgeHtml}</td>
-            <td style="${rowColorStyle}">${p.funcion || 'OPERATIVO'}</td>
             <td style="text-align: center; vertical-align: middle;">${rotBadgeHtml}</td>
+            <td style="text-align: center; vertical-align: middle;"><span style="background:#fee2e2; color:#b91c1c; padding:3px 10px; border-radius:12px; font-weight:900; font-size:0.8rem; letter-spacing:0.5px;">${p.funcion || 'OPERATIVO'}</span></td>
             <td class="table-actions">
                 <button class="btn-action edit" onclick="editPersonnel(${p.id})" title="Editar">✏️</button>
                 <button class="btn-action" onclick="designadoConductor(${p.id})" title="Designar Conductor / Enviar a Logística" style="background:#fef3c7; color:#d97706;">🚐</button>
