@@ -7654,8 +7654,8 @@ function dividePersonnelIntoGroups() {
     saveAppState('baborPersonnel', JSON.stringify(baborPersonnel));
     saveAppState('estriborPersonnel', JSON.stringify(estriborPersonnel));
 
-    // 2. División Dinámica de las unidades 21/7 (como UT 100.61.4 y UT 100.61.5) en GRUPO 1, GRUPO 2, GRUPO 3, GRUPO 4
-    const target21_7Units = ['UT_100.61.4', 'UT_100.61.5'];
+    // 2. División Dinámica de las unidades 21/7 (como UT 100.61.4 y UT 100.61.5 / CODESC y GT ECHO) en GRUPO 1, GRUPO 2, GRUPO 3, GRUPO 4
+    const target21_7Units = ['CODESC_NORTE', 'CODESC_SUR', 'UT_100.61.4', 'UT_100.61.5', 'GT_ECHO', 'CODESC'];
 
     target21_7Units.forEach(unitId => {
         // Filtrar personal operativo de esta unidad específica
@@ -11032,8 +11032,14 @@ window.applyEchoRotationRegime = async function () {
     let count = 0;
     personnel.forEach(p => {
         if (isDesignatedOtherFunction(p.funcion)) return; // Exclude other functions
-        const destino = (p.grupoDestino || '').toUpperCase();
-        if (destino.includes('GT ECHO') || destino.includes('ECHO')) {
+        const unitId = window.resolveOrgUnitId(p.grupoDestino);
+        
+        // El régimen 21/7 aplica a todo el personal de CODESC y GT ECHO (independientemente de si sus IDs son legacy o dinámicos)
+        const isEchoOrCodesc = ['CODESC_NORTE', 'CODESC_SUR', 'UT_100.61.4', 'UT_100.61.5', 'GT_ECHO', 'CODESC'].includes(unitId) ||
+                               (p.grupoDestino || '').toUpperCase().includes('ECHO') ||
+                               (p.grupoDestino || '').toUpperCase().includes('CODES');
+
+        if (isEchoOrCodesc) {
             const rot = (p.rotacion || '').toUpperCase();
             const personGroup = (p.rotacion || '').toUpperCase();
             const rotGroupLabel = groupLabelMap[rot] || '';
