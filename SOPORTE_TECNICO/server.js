@@ -75,11 +75,13 @@ function isLocalOrPrivateOrigin(origin) {
 function isAllowedPublicOrigin(origin) {
     try {
         const url = new URL(origin);
-        const hostname = url.hostname;
+        const hostname = url.hostname.toLowerCase();
         return hostname.endsWith('.trycloudflare.com') ||
                hostname.endsWith('.cfargotunnel.com') ||
                hostname.endsWith('.ngrok-free.dev') ||
-               hostname.endsWith('.ngrok-free.app');
+               hostname.endsWith('.ngrok-free.app') ||
+               hostname.includes('ngrok') ||
+               hostname.includes('cloudflare');
     } catch (e) {
         return false;
     }
@@ -532,13 +534,13 @@ app.post('/api/store/:key', (req, res) => {
         if (senderSocketId) {
             const senderSocket = io.sockets.sockets.get(senderSocketId);
             if (senderSocket) {
-                senderSocket.broadcast.emit('dataUpdate', { key, data: req.body });
+                senderSocket.broadcast.emit('dataUpdate', { key, data: bodyData });
             } else {
                 // Si no encontramos el socket, emitir a todos (comportamiento seguro)
-                io.emit('dataUpdate', { key, data: req.body });
+                io.emit('dataUpdate', { key, data: bodyData });
             }
         } else {
-            io.emit('dataUpdate', { key, data: req.body });
+            io.emit('dataUpdate', { key, data: bodyData });
         }
 
         res.json({ success: true });
