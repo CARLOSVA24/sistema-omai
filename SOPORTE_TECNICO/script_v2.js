@@ -11105,102 +11105,33 @@ window.toggleMultiSelect = function (btn) {
     if (!isActive) dropdown.classList.add('active');
 };
 
-window.addPostRow = function (tbodyId, data = { name: '', schedule: '', funcion: [] }) {
-    const tbody = document.getElementById(tbodyId);
-    if (!tbody) return;
+window.updatePostRowFunctions = function (row, selectedFuncs = []) {
+    const unitSelect = row.querySelector('.post-unit');
+    const dropdown = row.querySelector('.multi-select-dropdown');
+    if (!unitSelect || !dropdown) return;
 
-    // Obtener pool conforme a la sección (Puestos Fijos -> CODESC, Puestos de Apoyo -> GT ECHO)
-    const isFixed = (tbodyId === 'fixedPostsBody');
-    const targetPool = (typeof personnel !== 'undefined' ? personnel : []).filter(p => {
+    const unitId = unitSelect.value;
+
+    // Filtrar personal operativo que pertenezca a esta unidad
+    const unitPersonnel = (typeof personnel !== 'undefined' ? personnel : []).filter(p => {
         if (isDesignatedOtherFunction(p.funcion)) return false;
         const cond = (p.condition || 'OPERATIVO').toUpperCase();
         if (cond === 'BAJA' || cond === 'INACTIVO') return false;
         
-        const belongsToCodesc = window.isBelongingToUnit(p, 'CODESC');
-        return isFixed ? belongsToCodesc : !belongsToCodesc;
+        return window.resolveOrgUnitId(p.grupoDestino) === unitId;
     });
-    const functions = [...new Set(targetPool.map(p => (p.funcion || 'OPERATIVO').toUpperCase()))].sort();
 
-    const row = document.createElement('tr');
-    row.className = 'post-config-row';
+    const functions = [...new Set(unitPersonnel.map(p => (p.funcion || 'OPERATIVO').toUpperCase()))].sort();
 
-    // Manejar array de funciones
-    const selectedFunctions = Array.isArray(data.funcion) ? data.funcion : (data.funcion ? [data.funcion] : []);
-
-    // Generar opciones de función con checkboxes
-    const functionOptionsHtml = functions.map(f => `
+    dropdown.innerHTML = functions.map(f => `
         <label class="multi-select-option">
-            <input type="checkbox" value="${f}" ${selectedFunctions.includes(f) ? 'checked' : ''} 
-                onchange="updateRowPersonnelCounts(this.closest('tr'));">
+            <input type="checkbox" value="${f}" ${selectedFuncs.includes(f) ? 'checked' : ''} 
+                onchange="window.updateRowPersonnelCounts(this.closest('tr'));">
             <span>${f}</span>
         </label>
     `).join('');
 
-    row.innerHTML = `
-        <td style="padding: 5px;">
-            <input type="text" class="post-name" value="${data.name}" placeholder="Puesto..." style="width: 100%; border: 1px solid #e2e8f0; padding: 4px 8px; border-radius: 4px; font-size: 0.8rem;">
-        </td>
-        <td style="padding: 5px;">
-            <input type="text" class="post-sched" value="${data.schedule}" placeholder="Horario..." style="width: 100%; border: 1px solid #e2e8f0; padding: 4px 8px; border-radius: 4px; font-size: 0.8rem;">
-        </td>
-        <td style="padding: 5px;">
-            <div class="multi-select-container">
-                <div class="multi-select-trigger" onclick="toggleMultiSelect(this)">
-                    <span class="trigger-label">-- Seleccionar Funciones --</span>
-                    <span class="arrow"></span>
-                </div>
-                <div class="multi-select-dropdown">
-                    ${functionOptionsHtml}
-                </div>
-                <div class="function-counts" style="font-size: 0.65rem; color: #64748b; margin-top: 4px; font-weight: 700;"></div>
-            </div>
-        </td>
-        <td style="padding: 5px; text-align: center;">
-            <button class="btn-action delete" onclick="this.closest('tr').remove(); if(window.syncMultiSelectDropdowns) window.syncMultiSelectDropdowns();" title="Eliminar">🗑️</button>
-        </td>
-    `;
-    tbody.appendChild(row);
-
-    // Actualizar conteos iniciales
-    updateRowPersonnelCounts(row);
-
-    // Cerrar dropdown cuando se hace clic fuera
-    const closeDropdownHandler = (e) => {
-        if (!e.target.closest('.multi-select-container')) {
-            document.querySelectorAll('.multi-select-dropdown.active').forEach(d => d.classList.remove('active'));
-        }
-    };
-    document.addEventListener('click', closeDropdownHandler);
-    if (window.syncMultiSelectDropdowns) window.syncMultiSelectDropdowns();
-};
-
-window.syncPostFunctionDropdowns = function () {
-    const dropdowns = document.querySelectorAll('.post-function');
-    const selectedFunctions = new Set();
-
-    // 1. Recopilar funciones seleccionadas
-    dropdowns.forEach(select => {
-        if (select.value) selectedFunctions.add(select.value);
-    });
-
-    // 2. Actualizar visibilidad de opciones en cada dropdown
-    dropdowns.forEach(select => {
-        const currentValue = select.value;
-        const options = select.querySelectorAll('option');
-
-        options.forEach(opt => {
-            if (!opt.value) return; // Ignorar el "-- Seleccionar --"
-
-            // Si la función está seleccionada en OTRO dropdown
-            if (selectedFunctions.has(opt.value) && opt.value !== currentValue) {
-                opt.disabled = true;
-                opt.style.display = 'none';
-            } else {
-                opt.disabled = false;
-                opt.style.display = 'block';
-            }
-        });
-    });
+    window.updateRowPersonnelCounts(row);
 };
 
 window.updateRowPersonnelCounts = function (row) {
@@ -11211,7 +11142,7 @@ window.updateRowPersonnelCounts = function (row) {
 
     const selectedFunctions = Array.from(checkboxes).map(cb => cb.value.toUpperCase().trim());
 
-    // Actualizar label del trigger
+    // Actualizar trigger label
     if (selectedFunctions.length === 0) {
         triggerLabel.textContent = '-- Seleccionar Funciones --';
         triggerLabel.style.color = '#94a3b8';
@@ -11223,56 +11154,110 @@ window.updateRowPersonnelCounts = function (row) {
         triggerLabel.style.color = 'var(--accent-primary)';
     }
 
-    // Determinar pool conforme a la sección (Puestos Fijos -> CODESC, Puestos de Apoyo -> GT ECHO)
-    const isFixed = row.closest('tbody')?.id === 'fixedPostsBody';
+    const unitSelect = row.querySelector('.post-unit');
+    if (!unitSelect) return;
+    const unitId = unitSelect.value;
+    const unitName = unitSelect.options[unitSelect.selectedIndex]?.text || unitId;
+
+    // Filtrar personal de la unidad
     let availablePool = (typeof personnel !== 'undefined' ? personnel : []).filter(p => {
         if (isDesignatedOtherFunction(p.funcion)) return false;
         const cond = (p.condition || 'OPERATIVO').toUpperCase();
         if (cond === 'BAJA' || cond === 'INACTIVO') return false;
-        
-        const belongsToCodesc = window.isBelongingToUnit(p, 'CODESC');
-        return isFixed ? belongsToCodesc : !belongsToCodesc;
+        return window.resolveOrgUnitId(p.grupoDestino) === unitId;
     });
 
     if (selectedFunctions.length > 0) {
-        // Filtrar personal que tenga CUALQUIERA de las funciones seleccionadas
         const matchedPeople = availablePool.filter(p => {
             const pFunc = (p.funcion || '').toUpperCase().trim();
             return selectedFunctions.includes(pFunc);
         });
 
-        // Si no se encontró nadie con esas funciones específicas (distribución no generada aún),
-        // mostrar el total del pool como referencia amplia
         if (matchedPeople.length === 0 && availablePool.length > 0) {
             const ofCount = availablePool.filter(p => ofGrades.includes((p.grade || '').toUpperCase())).length;
             const trCount = availablePool.filter(p => !ofGrades.includes((p.grade || '').toUpperCase())).length;
-            countsDiv.textContent = `Pool global: ${ofCount} OF / ${trCount} TR (sin distrib. táctica)`;
+            countsDiv.textContent = `Pool global ${unitName}: ${ofCount} OF / ${trCount} TR (sin distrib. táctica)`;
         } else {
             const ofCount = matchedPeople.filter(p => ofGrades.includes((p.grade || '').toUpperCase())).length;
             const trCount = matchedPeople.filter(p => !ofGrades.includes((p.grade || '').toUpperCase())).length;
             countsDiv.textContent = `Pool disponible: ${ofCount} OF / ${trCount} TR`;
         }
     } else {
-        // Sin función seleccionada: mostrar total del pool correspondiente
         const ofCount = availablePool.filter(p => ofGrades.includes((p.grade || '').toUpperCase())).length;
         const trCount = availablePool.filter(p => !ofGrades.includes((p.grade || '').toUpperCase())).length;
-        countsDiv.textContent = `Pool ${isFixed ? 'CODESC' : 'GT ECHO'}: ${ofCount} OF / ${trCount} TR`;
+        countsDiv.textContent = `Pool ${unitName}: ${ofCount} OF / ${trCount} TR`;
     }
-    if (window.syncMultiSelectDropdowns) window.syncMultiSelectDropdowns();
 };
 
+window.addPostRow = function (tbodyId, data = { name: '', schedule: '', unitId: '', funcion: [] }) {
+    const tbody = document.getElementById(tbodyId);
+    if (!tbody) return;
 
-window.syncMultiSelectDropdowns = function () {
-    // Permitir que la misma función sea seleccionada en múltiples filas
-    // (el mismo personal puede emplearse en distintos puestos simultáneamente)
-    const allCheckboxes = document.querySelectorAll('.multi-select-dropdown input[type=checkbox]');
-    allCheckboxes.forEach(cb => {
-        cb.disabled = false;
-        const label = cb.closest('label.multi-select-option');
-        if (label) label.style.display = 'flex';
-    });
-};;
+    const isFixed = (tbodyId === 'fixedPostsBody');
+    const activeUnits = (window.orgUnits || []).filter(u => u.status === 'ACTIVE');
 
+    // Determinar la unidad por defecto
+    let defaultUnitId = data.unitId || '';
+    if (!defaultUnitId) {
+        if (isFixed) {
+            const codescUnit = activeUnits.find(u => u.id.toUpperCase().includes('CODESC') || u.name.toUpperCase().includes('100.61'));
+            defaultUnitId = codescUnit ? codescUnit.id : (activeUnits[0]?.id || '');
+        } else {
+            const echoUnit = activeUnits.find(u => u.id.toUpperCase().includes('ECHO') || u.name.toUpperCase().includes('100.51'));
+            defaultUnitId = echoUnit ? echoUnit.id : (activeUnits[0]?.id || '');
+        }
+    }
+
+    // Generar opciones del dropdown de unidades
+    const unitOptionsHtml = activeUnits.map(u => `
+        <option value="${u.id}" ${u.id === defaultUnitId ? 'selected' : ''}>${u.name || u.id}</option>
+    `).join('');
+
+    const row = document.createElement('tr');
+    row.className = 'post-config-row';
+
+    row.innerHTML = `
+        <td style="padding: 5px;">
+            <input type="text" class="post-name" value="${data.name || ''}" placeholder="Puesto..." style="width: 100%; border: 1px solid #e2e8f0; padding: 4px 8px; border-radius: 4px; font-size: 0.8rem;">
+        </td>
+        <td style="padding: 5px;">
+            <input type="text" class="post-sched" value="${data.schedule || ''}" placeholder="Horario..." style="width: 100%; border: 1px solid #e2e8f0; padding: 4px 8px; border-radius: 4px; font-size: 0.8rem;">
+        </td>
+        <td style="padding: 5px;">
+            <select class="post-unit" onchange="window.updatePostRowFunctions(this.closest('tr'));" style="width: 100%; border: 1px solid #e2e8f0; padding: 4px 8px; border-radius: 4px; font-size: 0.8rem;">
+                ${unitOptionsHtml}
+            </select>
+        </td>
+        <td style="padding: 5px;">
+            <div class="multi-select-container">
+                <div class="multi-select-trigger" onclick="toggleMultiSelect(this)">
+                    <span class="trigger-label">-- Seleccionar Funciones --</span>
+                    <span class="arrow"></span>
+                </div>
+                <div class="multi-select-dropdown">
+                    <!-- Se carga dinámicamente -->
+                </div>
+                <div class="function-counts" style="font-size: 0.65rem; color: #64748b; margin-top: 4px; font-weight: 700;"></div>
+            </div>
+        </td>
+        <td style="padding: 5px; text-align: center;">
+            <button class="btn-action delete" onclick="this.closest('tr').remove();" title="Eliminar">🗑️</button>
+        </td>
+    `;
+    tbody.appendChild(row);
+
+    // Cargar funciones y conteos para la unidad por defecto
+    const selectedFunctions = Array.isArray(data.funcion) ? data.funcion : (data.funcion ? [data.funcion] : (data.funciones || []));
+    window.updatePostRowFunctions(row, selectedFunctions);
+
+    // Cerrar dropdown cuando se hace clic fuera
+    const closeDropdownHandler = (e) => {
+        if (!e.target.closest('.multi-select-container')) {
+            document.querySelectorAll('.multi-select-dropdown.active').forEach(d => d.classList.remove('active'));
+        }
+    };
+    document.addEventListener('click', closeDropdownHandler);
+};
 
 window.resetPostConfig = function (force = false) {
     const fixedBody = document.getElementById('fixedPostsBody');
@@ -11284,14 +11269,11 @@ window.resetPostConfig = function (force = false) {
     fixedBody.innerHTML = '';
     supportBody.innerHTML = '';
 
-    // Valores iniciales (sin asignación de personal aún)
     addPostRow('fixedPostsBody', { name: 'PUESTO DE GUARDIA 1', schedule: '08:00 - 08:00' });
     addPostRow('fixedPostsBody', { name: 'PUESTO DE GUARDIA 2', schedule: '08:00 - 08:00' });
-
-    // Ejemplo GT ECHO
     addPostRow('supportPostsBody', { name: 'PATRULLAJE GT ECHO', schedule: 'TURNO 1' });
 
-    showNotification("Vista de puestos configurada con valores base. Seleccione la función y el personal para cada uno.");
+    showNotification("Vista de puestos configurada con valores base. Seleccione la unidad, función y personal.");
 };
 
 window.generatePostAssignments = function () {
@@ -11306,9 +11288,11 @@ window.generatePostAssignments = function () {
     const collect = (tbodyId, targetArray) => {
         document.querySelectorAll(`#${tbodyId} tr`).forEach(row => {
             const checkboxes = row.querySelectorAll('.multi-select-dropdown input[type=checkbox]:checked');
+            const unitSelect = row.querySelector('.post-unit');
             const postObj = {
                 name: row.querySelector('.post-name').value.trim(),
                 schedule: row.querySelector('.post-sched').value.trim(),
+                unitId: unitSelect ? unitSelect.value : '',
                 assigned: [],
                 funciones: Array.from(checkboxes).map(cb => cb.value)
             };
@@ -11321,8 +11305,6 @@ window.generatePostAssignments = function () {
 
     const allConfigPosts = [...config.fixed, ...config.support];
     const operative = personnel.filter(p => !isDesignatedOtherFunction(p.funcion) && (p.condition || 'OPERATIVO').toUpperCase() === 'OPERATIVO');
-    const echoPool = operative.filter(p => !window.isBelongingToUnit(p, 'CODESC'));
-    const codescPool = operative.filter(p => window.isBelongingToUnit(p, 'CODESC'));
 
     // Definir orden de rangos para distribución equitativa
     const ofOrder = ['CPNV', 'CPFG', 'CPCB', 'TNNV', 'TNFG', 'ALFG'];
@@ -11340,125 +11322,51 @@ window.generatePostAssignments = function () {
         });
     };
 
-    // 3. Obtener funciones de Puestos Fijos y distribuir el CODESC Pool en ellos
-    const fixedFunctions = new Set();
-    config.fixed.forEach(post => {
-        if (post.funciones) {
-            post.funciones.forEach(fn => fixedFunctions.add(fn.toUpperCase()));
-        }
-    });
+    // Distribuir el personal a cada puesto según su unidad y función coincidente
+    allConfigPosts.forEach(post => {
+        if (!post.unitId) return;
 
-    let matchingCodesc = codescPool.filter(p => fixedFunctions.has((p.funcion || 'OTRO').toUpperCase()));
-    matchingCodesc = sortPersonnelByRank(matchingCodesc);
+        // Filtrar personal operativo de esta unidad específica que aún no ha sido asignado
+        let matchingPool = operative.filter(p => 
+            window.resolveOrgUnitId(p.grupoDestino) === post.unitId &&
+            !assignedIds.has(String(p.id)) &&
+            post.funciones.map(f => f.toUpperCase()).includes((p.funcion || '').toUpperCase())
+        );
 
-    matchingCodesc.forEach((p) => {
-        const isOfficer = ofOrder.includes((p.grade || '').toUpperCase());
-        let bestPost = null;
-        let minTypeCount = Infinity;
-        let minTotalCount = Infinity;
+        matchingPool = sortPersonnelByRank(matchingPool);
 
-        config.fixed.forEach(post => {
-            // Solo considerar puestos fijos que incluyan la función del tripulante
-            if (!post.funciones || !post.funciones.map(f => f.toUpperCase()).includes((p.funcion || '').toUpperCase())) return;
-
-            let typeCount = 0;
-            post.assigned.forEach(ap => {
-                const apIsOfficer = ofOrder.includes((ap.grade || '').toUpperCase());
-                if (apIsOfficer === isOfficer) typeCount++;
-            });
-
-            let totalCount = post.assigned.length;
-
-            if (typeCount < minTypeCount) {
-                minTypeCount = typeCount;
-                minTotalCount = totalCount;
-                bestPost = post;
-            } else if (typeCount === minTypeCount) {
-                if (totalCount < minTotalCount) {
-                    minTotalCount = totalCount;
-                    bestPost = post;
-                }
-            }
-        });
-
-        if (bestPost && !bestPost.assigned.find(ap => ap.id === p.id)) {
-            bestPost.assigned.push(p);
+        // Asignar al puesto
+        matchingPool.forEach(p => {
+            post.assigned.push(p);
             assignedIds.add(String(p.id));
-        }
+        });
     });
 
-    // 4. Obtener funciones de Puestos de Apoyo y distribuir el ECHO Pool en ellos
-    const supportFunctions = new Set();
-    config.support.forEach(post => {
-        if (post.funciones) {
-            post.funciones.forEach(fn => supportFunctions.add(fn.toUpperCase()));
-        }
-    });
+    // Agrupar sobrantes por unidades para mostrarlos en la UI de forma organizada
+    const activeUnits = (window.orgUnits || []).filter(u => u.status === 'ACTIVE');
+    activeUnits.forEach(unit => {
+        const remainingInUnit = operative.filter(p => 
+            window.resolveOrgUnitId(p.grupoDestino) === unit.id &&
+            !assignedIds.has(String(p.id))
+        );
 
-    let matchingEcho = echoPool.filter(p => supportFunctions.has((p.funcion || 'OTRO').toUpperCase()));
-    matchingEcho = sortPersonnelByRank(matchingEcho);
-
-    matchingEcho.forEach((p) => {
-        const isOfficer = ofOrder.includes((p.grade || '').toUpperCase());
-        let bestPost = null;
-        let minTypeCount = Infinity;
-        let minTotalCount = Infinity;
-
-        config.support.forEach(post => {
-            // Solo considerar puestos de apoyo que incluyan la función del tripulante
-            if (!post.funciones || !post.funciones.map(f => f.toUpperCase()).includes((p.funcion || '').toUpperCase())) return;
-
-            let typeCount = 0;
-            post.assigned.forEach(ap => {
-                const apIsOfficer = ofOrder.includes((ap.grade || '').toUpperCase());
-                if (apIsOfficer === isOfficer) typeCount++;
+        if (remainingInUnit.length > 0) {
+            // Añadir como un puesto especial de disponibles para esa unidad
+            const unitName = unit.name || unit.id;
+            const targetList = (unit.id.toUpperCase().includes('CODESC') ? config.fixed : config.support);
+            targetList.push({
+                name: `DISPONIBLES / RELEVO (${unitName})`,
+                schedule: 'PENDIENTE',
+                unitId: unit.id,
+                assigned: remainingInUnit
             });
-
-            let totalCount = post.assigned.length;
-
-            if (typeCount < minTypeCount) {
-                minTypeCount = typeCount;
-                minTotalCount = totalCount;
-                bestPost = post;
-            } else if (typeCount === minTypeCount) {
-                if (totalCount < minTotalCount) {
-                    minTotalCount = totalCount;
-                    bestPost = post;
-                }
-            }
-        });
-
-        if (bestPost && !bestPost.assigned.find(ap => ap.id === p.id)) {
-            bestPost.assigned.push(p);
-            assignedIds.add(String(p.id));
         }
     });
 
-    // 5. Personal CODESC sobrante (Sin función específica asignada, va al reactor)
-    const remainingCodesc = codescPool.filter(p => !assignedIds.has(String(p.id)));
-    if (remainingCodesc.length > 0) {
-        config.fixed.push({
-            name: 'PUESTO DE REACCIÓN (CODESC)',
-            schedule: '24 HORAS',
-            assigned: remainingCodesc
-        });
-    }
-
-    // 6. Personal ECHO sobrante (O sin función asignada a puesto)
-    const remainingEcho = echoPool.filter(p => !assignedIds.has(String(p.id)));
-    if (remainingEcho.length > 0) {
-        config.support.push({
-            name: 'PERSONAL DISPONIBLE / RELEVO',
-            schedule: 'PENDIENTE',
-            assigned: remainingEcho
-        });
-    }
-
-    // 6. Ordenar Personal por Puesto: (Ya tenemos nuestra función sortPersonnelByRank)
+    // Ordenar Personal por Puesto
     allConfigPosts.forEach(post => {
         if (post.assigned.length > 0) post.assigned = sortPersonnelByRank(post.assigned);
     });
-    // También ordenar los sobrantes
     config.fixed.forEach(post => {
         if (post.assigned.length > 0) post.assigned = sortPersonnelByRank(post.assigned);
     });
