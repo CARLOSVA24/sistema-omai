@@ -13,7 +13,7 @@ echo  Esperando que el servidor arranque...
 timeout /t 4 /nobreak > nul
 
 echo  [2/2] Iniciando tunel ngrok (URL FIJA)...
-start "OMAI - Tunel ngrok" /min cmd /c "set PATH=%%PATH%%;C:\Program Files\ngrok && ngrok http 3000"
+start "OMAI - Tunel ngrok" /min cmd /c "set PATH=%%PATH%%;C:\Program Files\ngrok && ngrok http 3000 --domain=unarmored-unmoved-persuaded.ngrok-free.dev"
 
 timeout /t 3 /nobreak > nul
 
