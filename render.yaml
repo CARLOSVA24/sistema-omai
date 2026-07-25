@@ -1,0 +1,14 @@
+﻿services:
+  - type: web
+    name: sistema-omai
+    runtime: node
+    rootDir: SOPORTE_TECNICO
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: DB_PATH
+        value: /data/database.sqlite
+    disk:
+      name: omai-data
+      mountPath: /data
+      sizeGB: 1

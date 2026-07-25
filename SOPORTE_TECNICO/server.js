@@ -109,7 +109,7 @@ const io = new Server(server, {
     cors: corsOptions
 });
 
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 
 // Middleware
 // Detección de ruta para compatibilidad con ejecutable (.exe)
@@ -126,7 +126,7 @@ app.use(bodyParser.text({ limit: '10mb', type: 'text/plain' }));
 app.use(express.static(rootPath));
 
 // Database setup
-const dbPath = path.join(rootPath, 'database.sqlite');
+const dbPath = process.env.DB_PATH || path.join(rootPath, 'database.sqlite');
 const db = new sqlite3.Database(dbPath, (err) => {
     if (err) {
         console.error('Error opening database:', err.message);
@@ -175,12 +175,18 @@ function initializeDatabase() {
                 const stmt = db.prepare("INSERT INTO org_units (id, name, parent_id, category, status) VALUES (?, ?, ?, ?, ?)");
                 stmt.run("GT_ECHO", "GT ECHO", null, "GT", "ACTIVE");
                 stmt.run("CODESC", "CODESC", null, "GT", "ACTIVE");
+                stmt.run("GT_100_51", "GT 100.51", null, "GT", "ACTIVE");
+                stmt.run("FRAPAL", "FRAPAL", "GT_100_51", "BUQUE", "ACTIVE");
+                stmt.run("FRAMOR", "FRAMOR", "GT_100_51", "BUQUE", "ACTIVE");
                 stmt.finalize();
-                console.log("Unidades organizacionales por defecto (GT ECHO / CODESC) creadas.");
+                console.log("Unidades organizacionales por defecto (GT ECHO / CODESC / GT 100.51) creadas.");
             }
-            // Asegurar existencia de UT 100.61.4 y UT 100.61.5
+            // Asegurar existencia de UT 100.61.4, UT 100.61.5, GT 100.51 y subordinados
             db.run("INSERT OR IGNORE INTO org_units (id, name, parent_id, category, status) VALUES ('UT_100.61.4', 'UT 100.61.4', NULL, 'UT', 'ACTIVE')");
             db.run("INSERT OR IGNORE INTO org_units (id, name, parent_id, category, status) VALUES ('UT_100.61.5', 'UT 100.61.5', NULL, 'UT', 'ACTIVE')");
+            db.run("INSERT OR IGNORE INTO org_units (id, name, parent_id, category, status) VALUES ('GT_100_51', 'GT 100.51', NULL, 'GT', 'ACTIVE')");
+            db.run("INSERT OR IGNORE INTO org_units (id, name, parent_id, category, status) VALUES ('FRAPAL', 'FRAPAL', 'GT_100_51', 'BUQUE', 'ACTIVE')");
+            db.run("INSERT OR IGNORE INTO org_units (id, name, parent_id, category, status) VALUES ('FRAMOR', 'FRAMOR', 'GT_100_51', 'BUQUE', 'ACTIVE')");
         });
     });
 
@@ -322,7 +328,8 @@ app.get('/api/status', (req, res) => {
     res.json({ status: 'online', database: 'connected', timestamp: new Date() });
 });
 
-// --- AUTENTICACIÓN SEGURA ---
+const normalizeRoleStr = (str) => String(str || '').trim().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
 // Endpoint de login: valida credenciales contra la base de datos con bcrypt
 app.post('/api/login', (req, res) => {
     const { role, password } = req.body;
@@ -331,25 +338,26 @@ app.post('/api/login', (req, res) => {
         return res.status(400).json({ success: false, message: 'Datos de acceso inválidos.' });
     }
 
-    // Sanitizar: solo caracteres permitidos en el rol
-    const sanitizedRole = role.trim().toUpperCase().substring(0, 100);
+    const normInputRole = normalizeRoleStr(role);
 
-    db.get("SELECT password FROM users WHERE role = ?", [sanitizedRole], async (err, row) => {
+    db.all("SELECT role, password FROM users", [], async (err, rows) => {
         if (err) {
             console.error('Error en login DB:', err);
             return res.status(500).json({ success: false, message: 'Error interno del servidor.' });
         }
-        if (!row) {
-            // No revelar si el rol existe o no
+
+        const userRow = (rows || []).find(r => normalizeRoleStr(r.role) === normInputRole);
+
+        if (!userRow) {
             return res.status(401).json({ success: false, message: 'Credenciales incorrectas.' });
         }
         try {
-            const match = await bcrypt.compare(password, row.password);
+            const match = await bcrypt.compare(password, userRow.password);
             if (match) {
                 // Log de actividad
                 db.run("INSERT INTO activity_logs (user_role, action) VALUES (?, ?)",
-                    [sanitizedRole, 'Inicio de sesión exitoso']);
-                return res.json({ success: true, role: sanitizedRole });
+                    [userRow.role, 'Inicio de sesión exitoso']);
+                return res.json({ success: true, role: userRow.role });
             } else {
                 return res.status(401).json({ success: false, message: 'Credenciales incorrectas.' });
             }
@@ -530,19 +538,8 @@ app.post('/api/store/:key', (req, res) => {
     db.run("INSERT OR REPLACE INTO app_data (key, value) VALUES (?, ?)", [key, value], (err) => {
         if (err) return res.status(500).json({ error: err.message });
 
-        // NOTIFICAR SOLO A LOS OTROS CLIENTES (no al que envió el cambio)
-        if (senderSocketId) {
-            const senderSocket = io.sockets.sockets.get(senderSocketId);
-            if (senderSocket) {
-                senderSocket.broadcast.emit('dataUpdate', { key, data: bodyData });
-            } else {
-                // Si no encontramos el socket, emitir a todos (comportamiento seguro)
-                io.emit('dataUpdate', { key, data: bodyData });
-            }
-        } else {
-            io.emit('dataUpdate', { key, data: bodyData });
-        }
-
+        // Notificar a TODOS los clientes conectados en tiempo real
+        io.emit('dataUpdate', { key, data: bodyData });
         res.json({ success: true });
     });
 });
