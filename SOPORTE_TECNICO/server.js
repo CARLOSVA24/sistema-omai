@@ -127,11 +127,17 @@ app.use(express.static(rootPath));
 
 // Database setup
 const dbPath = process.env.DB_PATH || path.join(rootPath, 'database.sqlite');
+// Ensure the directory for the database exists (needed for cloud persistent disks)
+const dbDir = path.dirname(dbPath);
+if (!require('fs').existsSync(dbDir)) {
+    require('fs').mkdirSync(dbDir, { recursive: true });
+    console.log(`Directorio de base de datos creado: ${dbDir}`);
+}
 const db = new sqlite3.Database(dbPath, (err) => {
     if (err) {
         console.error('Error opening database:', err.message);
     } else {
-        console.log('Connected to the SQLite database.');
+        console.log(`Base de datos conectada en: ${dbPath}`);
         initializeDatabase();
     }
 });
@@ -269,12 +275,16 @@ function initializeDatabase() {
         }
     });
 
-    // Migrar contraseñas en texto plano a bcrypt (ejecución única)
-    db.all("SELECT role, password FROM users", async (err, rows) => {
+    // Crear usuarios por defecto usando hashSync (síncrono) para evitar
+    // problemas de async/await dentro de callbacks de SQLite
+    db.all("SELECT role, password FROM users", (err, rows) => {
         if (err) { console.error('Error leyendo usuarios:', err); return; }
 
+        const SALT_ROUNDS = 10;
+        const isHashed = (p) => typeof p === 'string' && p.startsWith('$2');
+
         if (!rows || rows.length === 0) {
-            // Primer arranque: insertar usuarios con contraseñas hasheadas
+            // Primer arranque: insertar usuarios con contraseñas hasheadas (síncronamente)
             const defaultPasswords = {
                 "ADMINISTRADOR": "admin",
                 "JEFE OMAI": "jefe",
@@ -284,21 +294,18 @@ function initializeDatabase() {
                 "CMDTE GT 51": "cmdte",
                 "PURGA_MAESTRA": "omai2024"
             };
-            const SALT_ROUNDS = 10;
             const stmt = db.prepare("INSERT INTO users (role, password) VALUES (?, ?)");
             for (const [role, pass] of Object.entries(defaultPasswords)) {
-                const hashed = await bcrypt.hash(pass, SALT_ROUNDS);
+                const hashed = bcrypt.hashSync(pass, SALT_ROUNDS);
                 stmt.run(role, hashed);
             }
             stmt.finalize();
             console.log('Usuarios iniciales creados con contraseñas hasheadas.');
         } else {
             // Migrar contraseñas en texto plano que aún no estén hasheadas
-            const SALT_ROUNDS = 10;
-            const isHashed = (p) => typeof p === 'string' && p.startsWith('$2');
             for (const row of rows) {
                 if (!isHashed(row.password)) {
-                    const hashed = await bcrypt.hash(row.password, SALT_ROUNDS);
+                    const hashed = bcrypt.hashSync(row.password, SALT_ROUNDS);
                     db.run("UPDATE users SET password = ? WHERE role = ?", [hashed, row.role]);
                     console.log(`Contraseña migrada a bcrypt para rol: ${row.role}`);
                 }
@@ -306,11 +313,11 @@ function initializeDatabase() {
         }
 
         // Asegurar que la clave maestra (PURGA_MAESTRA) siempre exista
-        db.get("SELECT password FROM users WHERE role = 'PURGA_MAESTRA'", [], async (pmErr, pmRow) => {
+        db.get("SELECT password FROM users WHERE role = 'PURGA_MAESTRA'", [], (pmErr, pmRow) => {
             if (pmErr) {
                 console.error('Error consultando PURGA_MAESTRA:', pmErr);
             } else if (!pmRow) {
-                const hashed = await bcrypt.hash("omai2024", 10);
+                const hashed = bcrypt.hashSync("omai2024", SALT_ROUNDS);
                 db.run("INSERT INTO users (role, password) VALUES ('PURGA_MAESTRA', ?)", [hashed], (insErr) => {
                     if (insErr) console.error('Error insertando PURGA_MAESTRA por defecto:', insErr);
                     else console.log('Clave maestra de borrado inicializada en base de datos.');
