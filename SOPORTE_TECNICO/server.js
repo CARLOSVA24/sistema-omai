@@ -380,6 +380,37 @@ app.get('/api/init-users', (req, res) => {
     }
 });
 
+// Endpoint de diagnóstico: verifica bcrypt y contraseñas almacenadas
+app.get('/api/test-login', (req, res) => {
+    db.all("SELECT role, password FROM users", [], async (err, rows) => {
+        if (err) return res.status(500).json({ error: err.message });
+        const results = [];
+        for (const row of (rows || [])) {
+            let compareResult = null;
+            try {
+                // Prueba contra la contraseña por defecto del rol
+                const defaultPwd = {
+                    "ADMINISTRADOR": "admin", "JEFE OMAI": "jefe",
+                    "PERSONAL OMAI": "personal", "LOGISTICA OMAI": "logistica",
+                    "INTELIGENCIA OMAI": "inteligencia", "CMDTE GT 51": "cmdte"
+                }[row.role] || null;
+                if (defaultPwd) {
+                    compareResult = await bcrypt.compare(defaultPwd, row.password);
+                }
+            } catch(e) { compareResult = `ERROR: ${e.message}`; }
+            results.push({
+                role: row.role,
+                hashPrefix: row.password ? row.password.substring(0, 20) : 'NULL',
+                isValidBcrypt: row.password ? row.password.startsWith('$2') : false,
+                compareResult
+            });
+        }
+        const testHash = bcrypt.hashSync('admin', 10);
+        const testCompare = await bcrypt.compare('admin', testHash);
+        res.json({ totalUsers: rows.length, bcryptSelfTest: testCompare, users: results });
+    });
+});
+
 const normalizeRoleStr = (str) => String(str || '').trim().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
 // Endpoint de login: valida credenciales contra la base de datos con bcrypt
