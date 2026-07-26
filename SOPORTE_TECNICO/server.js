@@ -70,8 +70,9 @@ function isLocalOrPrivateOrigin(origin) {
     }
     return false;
 }
+}
 
-// ─── DOMINIOS PÚBLICOS PERMITIDOS (Cloudflare Tunnel y ngrok) ───────────────────────
+// ─── DOMINIOS PÚBLICOS PERMITIDOS (Cloudflare Tunnel, ngrok, Render, Railway, etc.) ─
 function isAllowedPublicOrigin(origin) {
     try {
         const url = new URL(origin);
@@ -80,6 +81,11 @@ function isAllowedPublicOrigin(origin) {
                hostname.endsWith('.cfargotunnel.com') ||
                hostname.endsWith('.ngrok-free.dev') ||
                hostname.endsWith('.ngrok-free.app') ||
+               hostname.endsWith('.onrender.com') ||
+               hostname.endsWith('.railway.app') ||
+               hostname.endsWith('.fly.dev') ||
+               hostname.endsWith('.vercel.app') ||
+               hostname.endsWith('.netlify.app') ||
                hostname.includes('ngrok') ||
                hostname.includes('cloudflare');
     } catch (e) {
