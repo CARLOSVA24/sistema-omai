@@ -413,17 +413,40 @@ app.get('/api/test-login', (req, res) => {
 
 const normalizeRoleStr = (str) => String(str || '').trim().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
-// Endpoint de login: valida credenciales contra la base de datos con bcrypt
+// Endpoint de login rapido para diagnóstico via GET (solo para debug — quitar después)
+app.get('/api/debug-login', (req, res) => {
+    const role = req.query.role || 'ADMINISTRADOR';
+    const password = req.query.password || 'admin';
+    const normInputRole = normalizeRoleStr(role);
+    db.all("SELECT role, password FROM users", [], (err, rows) => {
+        if (err) return res.status(500).json({ error: err.message });
+        const userRow = (rows || []).find(r => normalizeRoleStr(r.role) === normInputRole);
+        if (!userRow) return res.json({ found: false, normInputRole, totalRows: rows.length });
+        try {
+            const match = bcrypt.compareSync(password, userRow.password);
+            res.json({ found: true, role: userRow.role, passwordReceived: password, match, hashPrefix: userRow.password.substring(0,20) });
+        } catch(e) {
+            res.json({ found: true, role: userRow.role, error: e.message });
+        }
+    });
+});
+
+// Endpoint de login: valida credenciales contra la base de datos con bcrypt (compareSync)
 app.post('/api/login', (req, res) => {
-    const { role, password } = req.body;
+    const body = req.body;
+    const role = body && body.role;
+    const password = body && body.password;
+
+    console.log(`[LOGIN] body type: ${typeof body}, role: ${JSON.stringify(role)}, passwordLen: ${password ? String(password).length : 'null'}`);
 
     if (!role || typeof role !== 'string' || !password || typeof password !== 'string') {
+        console.log(`[LOGIN] Validacion fallida: role=${JSON.stringify(role)}, pass=${JSON.stringify(password)}`);
         return res.status(400).json({ success: false, message: 'Datos de acceso inválidos.' });
     }
 
     const normInputRole = normalizeRoleStr(role);
 
-    db.all("SELECT role, password FROM users", [], async (err, rows) => {
+    db.all("SELECT role, password FROM users", [], (err, rows) => {
         if (err) {
             console.error('Error en login DB:', err);
             return res.status(500).json({ success: false, message: 'Error interno del servidor.' });
@@ -432,12 +455,13 @@ app.post('/api/login', (req, res) => {
         const userRow = (rows || []).find(r => normalizeRoleStr(r.role) === normInputRole);
 
         if (!userRow) {
+            console.log(`[LOGIN] Usuario no encontrado: ${normInputRole} en ${(rows||[]).map(r=>r.role)}`);
             return res.status(401).json({ success: false, message: 'Credenciales incorrectas.' });
         }
         try {
-            const match = await bcrypt.compare(password, userRow.password);
+            const match = bcrypt.compareSync(String(password), userRow.password);
+            console.log(`[LOGIN] compareSync result: ${match} for role: ${userRow.role}`);
             if (match) {
-                // Log de actividad
                 db.run("INSERT INTO activity_logs (user_role, action) VALUES (?, ?)",
                     [userRow.role, 'Inicio de sesión exitoso']);
                 return res.json({ success: true, role: userRow.role });
