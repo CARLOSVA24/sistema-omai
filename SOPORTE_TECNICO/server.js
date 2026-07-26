@@ -425,112 +425,15 @@ app.get('/api/status', (req, res) => {
     res.json({ status: 'online', database: 'connected', timestamp: new Date(), dbPath });
 });
 
-// Endpoint de reinicio de contraseñas: siempre sobreescribe con contraseñas conocidas
-app.get('/api/init-users', (req, res) => {
-    const SALT_ROUNDS = 10;
-    const defaultPasswords = {
-        "ADMINISTRADOR": "admin",
-        "JEFE OMAI": "jefe",
-        "PERSONAL OMAI": "personal",
-        "LOGISTICA OMAI": "logistica",
-        "INTELIGENCIA OMAI": "inteligencia",
-        "CMDTE GT 51": "cmdte",
-        "CORLOJ": "corloj",
-        "FRAPAL": "frapal",
-        "FRAMOR": "framor",
-        "CORIOS": "corios",
-        "CORMAN": "corman",
-        "ESCLAM": "esclam",
-        "TRAHUA": "trahua",
-        "ESCAUX": "escaux",
-        "TRACAL": "tracal",
-        "TANATA": "tanata",
-        "REMIMB": "remimb",
-        "REMCHI": "remchi",
-        "ESCORB": "escorb",
-        "COMSUB": "comsub",
-        "PURGA_MAESTRA": "omai2024"
-    };
 
-    try {
-        // INSERT OR REPLACE siempre sobreescribe — corrige contraseñas corruptas
-        const stmt = db.prepare("INSERT OR REPLACE INTO users (role, password) VALUES (?, ?)");
-        const created = [];
-        for (const [role, pass] of Object.entries(defaultPasswords)) {
-            const hashed = bcrypt.hashSync(pass, SALT_ROUNDS);
-            stmt.run(role, hashed);
-            created.push(role);
-        }
-        stmt.finalize();
-        console.log('Usuarios reiniciados via /api/init-users:', created);
-        res.json({ message: 'Usuarios creados/reiniciados exitosamente', count: created.length, roles: created });
-    } catch (e) {
-        console.error('Error en /api/init-users:', e);
-        res.status(500).json({ error: e.message });
-    }
-});
 
-// Endpoint de diagnóstico: verifica bcrypt y contraseñas almacenadas
-app.get('/api/test-login', (req, res) => {
-    db.all("SELECT role, password FROM users", [], async (err, rows) => {
-        if (err) return res.status(500).json({ error: err.message });
-        const results = [];
-        for (const row of (rows || [])) {
-            let compareResult = null;
-            try {
-                // Prueba contra la contraseña por defecto del rol
-                const defaultPwd = {
-                    "ADMINISTRADOR": "admin", "JEFE OMAI": "jefe",
-                    "PERSONAL OMAI": "personal", "LOGISTICA OMAI": "logistica",
-                    "INTELIGENCIA OMAI": "inteligencia", "CMDTE GT 51": "cmdte"
-                }[row.role] || null;
-                if (defaultPwd) {
-                    compareResult = await bcrypt.compare(defaultPwd, row.password);
-                }
-            } catch(e) { compareResult = `ERROR: ${e.message}`; }
-            results.push({
-                role: row.role,
-                hashPrefix: row.password ? row.password.substring(0, 20) : 'NULL',
-                isValidBcrypt: row.password ? row.password.startsWith('$2') : false,
-                compareResult
-            });
-        }
-        const testHash = bcrypt.hashSync('admin', 10);
-        const testCompare = await bcrypt.compare('admin', testHash);
-        res.json({ totalUsers: rows.length, bcryptSelfTest: testCompare, users: results });
-    });
-});
-
-const normalizeRoleStr = (str) => String(str || '').trim().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-
-// Endpoint de login rapido para diagnóstico via GET (solo para debug — quitar después)
-app.get('/api/debug-login', (req, res) => {
-    const role = req.query.role || 'ADMINISTRADOR';
-    const password = req.query.password || 'admin';
-    const normInputRole = normalizeRoleStr(role);
-    db.all("SELECT role, password FROM users", [], (err, rows) => {
-        if (err) return res.status(500).json({ error: err.message });
-        const userRow = (rows || []).find(r => normalizeRoleStr(r.role) === normInputRole);
-        if (!userRow) return res.json({ found: false, normInputRole, totalRows: rows.length });
-        try {
-            const match = bcrypt.compareSync(password, userRow.password);
-            res.json({ found: true, role: userRow.role, passwordReceived: password, match, hashPrefix: userRow.password.substring(0,20) });
-        } catch(e) {
-            res.json({ found: true, role: userRow.role, error: e.message });
-        }
-    });
-});
-
-// Endpoint de login: valida credenciales contra la base de datos con bcrypt (compareSync)
+// Endpoint de login: valida credenciales contra la base de datos
 app.post('/api/login', (req, res) => {
     const body = req.body;
     const role = body && body.role;
     const password = body && body.password;
 
-    console.log(`[LOGIN] body type: ${typeof body}, role: ${JSON.stringify(role)}, passwordLen: ${password ? String(password).length : 'null'}`);
-
     if (!role || typeof role !== 'string' || !password || typeof password !== 'string') {
-        console.log(`[LOGIN] Validacion fallida: role=${JSON.stringify(role)}, pass=${JSON.stringify(password)}`);
         return res.status(400).json({ success: false, message: 'Datos de acceso inválidos.' });
     }
 
@@ -545,12 +448,10 @@ app.post('/api/login', (req, res) => {
         const userRow = (rows || []).find(r => normalizeRoleStr(r.role) === normInputRole);
 
         if (!userRow) {
-            console.log(`[LOGIN] Usuario no encontrado: ${normInputRole} en ${(rows||[]).map(r=>r.role)}`);
             return res.status(401).json({ success: false, message: 'Credenciales incorrectas.' });
         }
         try {
             const match = bcrypt.compareSync(String(password), userRow.password);
-            console.log(`[LOGIN] compareSync result: ${match} for role: ${userRow.role}`);
             if (match) {
                 db.run("INSERT INTO activity_logs (user_role, action) VALUES (?, ?)",
                     [userRow.role, 'Inicio de sesión exitoso']);
