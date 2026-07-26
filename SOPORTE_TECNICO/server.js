@@ -835,6 +835,11 @@ function startServer() {
 }
 
 // --- MANEJO GLOBAL DE ERRORES ---
+// Manejador 404 para rutas API desconocidas — devuelve JSON en vez de texto plano
+app.use('/api', (req, res) => {
+    res.status(404).json({ error: `Endpoint no encontrado: ${req.method} ${req.path}` });
+});
+
 // Middleware para errores de CORS y otros errores no capturados
 app.use((err, req, res, next) => {
     if (err.message && err.message.startsWith('CORS:')) {
