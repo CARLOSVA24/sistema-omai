@@ -34,6 +34,7 @@ var codescStartGroup = 'GOLF';
 var logisticsStartDate = null;
 var logisticsStartGroup = 'ESTRIBOR';
 var lastDistributionConfig = null;
+var codescReqPersonnelConfig = {};
 
 const legacyGroupMap = {
     'ALFA': 'GRUPO 1',
@@ -97,7 +98,11 @@ async function serverSave(key, data) {
 }
 
 function saveAppState(key, value) {
-    localStorage.setItem(key, value);
+    try {
+        localStorage.setItem(key, value);
+    } catch (e) {
+        console.warn(`localStorage no pudo guardar '${key}' (almacenamiento lleno o restringido):`, e);
+    }
     let data = value;
     try {
         if (typeof value === 'string') {
@@ -135,22 +140,67 @@ async function updateConnectionStatus() {
 }
 
 async function loadAllDataFromServer() {
-    crimes = await serverLoad('gyecrimes', []);
-    personnel = await serverLoad('gyepersonal', []);
-    guardAssignments = await serverLoad('guardAssignments', []);
-    specialAssignments = await serverLoad('specialAssignments', []);
-    baborPersonnel = await serverLoad('baborPersonnel', []);
-    estriborPersonnel = await serverLoad('estriborPersonnel', []);
-    opsEvents = await serverLoad('opsEvents', []);
-    instantOps = await serverLoad('instantOps', []);
-    patrolOrders = await serverLoad('patrolOrders', []);
-    templatePatrolOrders = await serverLoad('templatePatrolOrders', []);
-    commandPostPersonnel = await serverLoad('commandPostPersonnel', []);
-    personnelHistory = await serverLoad('personnelHistory', []);
-    vehicles = await serverLoad('gyevehicles', []);
-    choferes = await serverLoad('gyechoferes', []);
-    externalOrdersMetadata = await serverLoad('externalOrdersMetadata', []);
-    codescDailyRegistry = await serverLoad('codescDailyRegistry', []);
+    const [
+        loadedCrimes, loadedPersonnel, loadedGuard, loadedSpecial,
+        loadedBabor, loadedEstribor, loadedOps, loadedInstant,
+        loadedPatrol, loadedTemplate, loadedCommandPost, loadedHistory,
+        loadedVehicles, loadedChoferes, loadedExternal, loadedCodescDaily,
+        loadedRotationDate, loadedRotationGroup, loadedCodescDate, loadedCodescGroup,
+        loadedDistributionConfig, loadedDrawnItems, loadedCodescReqConfig
+    ] = await Promise.all([
+        serverLoad('gyecrimes', []),
+        serverLoad('gyepersonal', []),
+        serverLoad('guardAssignments', []),
+        serverLoad('specialAssignments', []),
+        serverLoad('baborPersonnel', []),
+        serverLoad('estriborPersonnel', []),
+        serverLoad('opsEvents', []),
+        serverLoad('instantOps', []),
+        serverLoad('patrolOrders', []),
+        serverLoad('templatePatrolOrders', []),
+        serverLoad('commandPostPersonnel', []),
+        serverLoad('personnelHistory', []),
+        serverLoad('gyevehicles', []),
+        serverLoad('gyechoferes', []),
+        serverLoad('externalOrdersMetadata', []),
+        serverLoad('codescDailyRegistry', []),
+        serverLoad('rotationStartDate', null),
+        serverLoad('rotationStartGroup', 'GRUPO 1'),
+        serverLoad('codescReferenceDate', null), // Usamos codescReferenceDate para mantener compatibilidad
+        serverLoad('codescStartGroup', 'GOLF'),
+        serverLoad('lastDistributionConfig', null),
+        serverLoad('gyeDrawnItems', null),
+        serverLoad('codesc_req_personnel_config', {})
+    ]);
+
+    crimes = loadedCrimes;
+    personnel = loadedPersonnel;
+    guardAssignments = loadedGuard;
+    specialAssignments = loadedSpecial;
+    baborPersonnel = loadedBabor;
+    estriborPersonnel = loadedEstribor;
+    opsEvents = loadedOps;
+    instantOps = loadedInstant;
+    patrolOrders = loadedPatrol;
+    templatePatrolOrders = loadedTemplate;
+    commandPostPersonnel = loadedCommandPost;
+    personnelHistory = loadedHistory;
+    vehicles = loadedVehicles;
+    choferes = loadedChoferes;
+    externalOrdersMetadata = loadedExternal;
+    codescDailyRegistry = loadedCodescDaily;
+
+    rotationStartDate = loadedRotationDate;
+    rotationStartGroup = loadedRotationGroup;
+    codescStartDate = loadedCodescDate;
+    codescStartGroup = loadedCodescGroup;
+    lastDistributionConfig = loadedDistributionConfig;
+    codescReqPersonnelConfig = loadedCodescReqConfig;
+
+    if (loadedDrawnItems) {
+        localStorage.setItem('gyeDrawnItems', JSON.stringify(loadedDrawnItems));
+    }
+
     await window.loadOrgUnits();
 
     // Cargar datos de Planificación Diaria de Operaciones desde el servidor
@@ -159,18 +209,6 @@ async function loadAllDataFromServer() {
         if (typeof renderPlanTable === 'function') {
             renderPlanTable();
         }
-    }
-
-    rotationStartDate = await serverLoad('rotationStartDate', null);
-    rotationStartGroup = await serverLoad('rotationStartGroup', 'GRUPO 1');
-    codescStartDate = await serverLoad('codescReferenceDate', null); // Usamos codescReferenceDate para mantener compatibilidad
-    codescStartGroup = await serverLoad('codescStartGroup', 'GOLF');
-    lastDistributionConfig = await serverLoad('lastDistributionConfig', null);
-
-    // Sincronizar dibujos manuales (Polígonos/Líneas)
-    const serverDrawnItems = await serverLoad('gyeDrawnItems', null);
-    if (serverDrawnItems) {
-        localStorage.setItem('gyeDrawnItems', JSON.stringify(serverDrawnItems));
     }
 
     // Las contraseñas ya no se sincronizan desde app_data: ahora están en la tabla 'users' del servidor.
@@ -270,9 +308,6 @@ if (socket) {
         const { key, data } = payload;
         console.log(`Recibida actualización en tiempo real para: ${key}`);
 
-        // No sobrescribir si el usuario está editando algo
-        if (editingId || editingPersonnelId || editingInstantOpId) return;
-
         // Actualizar variables globales y UI según la clave
         if (key === 'gyecrimes') {
             crimes = data;
@@ -282,19 +317,24 @@ if (socket) {
             if (typeof updateDashboard === 'function') updateDashboard();
         } else if (key === 'gyepersonal') {
             personnel = data;
-            if (typeof renderPersonnelTable === 'function') renderPersonnelTable();
+            if (!editingPersonnelId && typeof renderPersonnelTable === 'function') renderPersonnelTable();
             if (typeof updatePersonnelStats === 'function') updatePersonnelStats();
             if (typeof renderDistributionTable === 'function') renderDistributionTable();
             if (typeof renderWatchDivision === 'function') renderWatchDivision();
             if (typeof updateDashboard === 'function') updateDashboard();
             if (typeof renderOtherFunctionsView === 'function') renderOtherFunctionsView();
+            if (typeof renderCodescDailyRegistryTable === 'function') renderCodescDailyRegistryTable();
+            if (typeof renderCodescPersonnelRegistryTable === 'function') renderCodescPersonnelRegistryTable();
+            if (typeof renderCodescCompliance === 'function') renderCodescCompliance();
+            if (typeof renderCodescRequiredPersonnel === 'function') renderCodescRequiredPersonnel();
         } else if (key === 'patrolOrders') {
             patrolOrders = data;
             if (typeof renderORDPATTable === 'function') renderORDPATTable();
             if (typeof populateOrderReferences === 'function') populateOrderReferences();
+            if (typeof renderHistoricalPatrolTable === 'function') renderHistoricalPatrolTable();
         } else if (key === 'instantOps') {
             instantOps = data;
-            if (typeof renderInstantOpsTable === 'function') renderInstantOpsTable();
+            if (!editingInstantOpId && typeof renderInstantOpsTable === 'function') renderInstantOpsTable();
         } else if (key === 'gyevehicles') {
             vehicles = data;
             if (typeof renderVehiclesTable === 'function') renderVehiclesTable();
@@ -320,12 +360,12 @@ if (socket) {
             if (key === 'estriborPersonnel') estriborPersonnel = data;
             if (typeof renderWatchDivision === 'function') renderWatchDivision();
             if (typeof updatePersonnelStats === 'function') updatePersonnelStats();
+            if (typeof renderDistributionTable === 'function') renderDistributionTable();
+            if (typeof renderCodescCompliance === 'function') renderCodescCompliance();
         } else if (key === 'lastDistributionConfig') {
             lastDistributionConfig = data;
             if (typeof renderDistributionTable === 'function') renderDistributionTable();
         } else if (key === 'app_passwords') {
-            // Las contraseñas ya no se manejan en el frontend.
-            // Solo actualizamos la lista de roles si cambió la tabla de usuarios.
             fetch(`${API_BASE}/users`).then(r => r.json()).then(roles => {
                 storedRoles = roles;
                 if (typeof renderAdminKeysTable === 'function') renderAdminKeysTable();
@@ -339,6 +379,8 @@ if (socket) {
         } else if (key === 'codescDailyRegistry') {
             codescDailyRegistry = data;
             if (typeof renderCodescDailyRegistryTable === 'function') renderCodescDailyRegistryTable();
+            if (typeof renderCodescPersonnelRegistryTable === 'function') renderCodescPersonnelRegistryTable();
+            if (typeof renderCodescCompliance === 'function') renderCodescCompliance();
         } else if (key === 'rotationStartDate' || key === 'rotationStartGroup' || key === 'codescReferenceDate' || key === 'codescStartGroup' || key === 'logisticsReferenceDate' || key === 'logisticsStartGroup') {
             if (key === 'rotationStartDate') rotationStartDate = data;
             if (key === 'rotationStartGroup') rotationStartGroup = data;
@@ -356,6 +398,11 @@ if (socket) {
             templatePatrolOrders = data;
         } else if (key === 'externalOrdersMetadata') {
             externalOrdersMetadata = data;
+        } else if (key === 'codesc_req_personnel_config') {
+            codescReqPersonnelConfig = data;
+            if (typeof renderCodescRequiredPersonnel === 'function') renderCodescRequiredPersonnel();
+            if (typeof renderCodescCompliance === 'function') renderCodescCompliance();
+            if (typeof renderCodescDailyRegistryTable === 'function') renderCodescDailyRegistryTable();
         }
     });
 
@@ -661,13 +708,15 @@ function applyRBAC(role) {
     } else if (role === 'PERSONAL OMAI') {
         ['personal', 'about'].forEach(k => { if (menus[k]) menus[k].style.display = 'block'; });
         enableLeafletPatch = false;
-    } else if (role === 'LOGISTICA OMAI') {
+    } else if (role === 'LOGISTICA OMAI' || role === 'LOGÍSTICA OMAI') {
         ['logistica', 'about'].forEach(k => { if (menus[k]) menus[k].style.display = 'block'; });
         enableLeafletPatch = false;
     } else if (role === 'INTELIGENCIA OMAI') {
         ['inteligencia', 'about'].forEach(k => { if (menus[k]) menus[k].style.display = 'block'; });
         enableLeafletPatch = true;
     } else {
+        // Roles de buques: mostrar solo el menú Personal
+        ['personal'].forEach(k => { if (menus[k]) menus[k].style.display = 'block'; });
         enableLeafletPatch = false;
     }
     // Hide map layer switcher and map tools for non‑Inteligencia modules
@@ -699,6 +748,47 @@ function applyRBAC(role) {
             if (mapTools) mapTools.style.display = 'none';
         }, 500);
     }
+
+    const coreRoles = ['ADMINISTRADOR', 'JEFE OMAI', 'PERSONAL OMAI', 'LOGISTICA OMAI', 'INTELIGENCIA OMAI', 'CMDTE GT 51'];
+    if (!coreRoles.includes(role)) {
+        // 1. Mostrar y expandir el menú Personal en la barra lateral
+        const personalMenuItem = document.getElementById('menuItem-personal');
+        const personalMenuContent = document.getElementById('personal');
+        const personalMenuBtn = document.querySelector('#menuItem-personal .menu-btn');
+        if (personalMenuItem) personalMenuItem.style.display = 'block';
+        if (personalMenuContent) personalMenuContent.classList.add('active');
+        if (personalMenuBtn) personalMenuBtn.classList.add('active');
+
+        // 2. Ocultar sub-menús del menú Personal que no sean "Registro de Personal"
+        document.querySelectorAll('#menuItem-personal .sub-menu-btn').forEach(btn => {
+            if (btn.getAttribute('data-view') !== 'personnelView') {
+                btn.style.display = 'none';
+            } else {
+                btn.style.display = 'block';
+                btn.classList.add('active');
+            }
+        });
+
+        // 3. Ocultar pestañas dentro del módulo de personal excepto Diario CODESC
+        document.querySelectorAll('.personnel-tab-btn').forEach(btn => {
+            if (btn.getAttribute('data-target-view') !== 'dailyCodescRegistryView') {
+                btn.style.display = 'none';
+            } else {
+                btn.style.display = 'inline-block';
+                btn.classList.add('active');
+            }
+        });
+
+        // 4. Mostrar directamente la vista dailyCodescRegistryView y cargar sus datos
+        if (typeof showAppView === 'function') {
+            showAppView('dailyCodescRegistryView');
+        }
+        if (typeof populateCodescDailyUnits === 'function') populateCodescDailyUnits();
+        if (typeof renderCodescDailyRegistryTable === 'function') renderCodescDailyRegistryTable();
+        if (typeof setDefaultCodescDailyOmaiDate === 'function') setDefaultCodescDailyOmaiDate();
+        if (typeof renderCodescRequiredPersonnel === 'function') renderCodescRequiredPersonnel();
+        if (typeof renderCodescCompliance === 'function') renderCodescCompliance();
+    }
 }
 
 window.handleGenerateKey = async function (e) {
@@ -722,6 +812,12 @@ window.handleGenerateKey = async function (e) {
         if (res.ok && data.success) {
             logActionToServer(`Actualizó clave para el rol: ${role}`);
             showNotification('Contraseña actualizada exitosamente para: ' + role);
+            
+            // Guardar una copia local sombra para que el Administrador pueda visualizarla
+            let localPasses = safeJSONParse('app_passwords', {});
+            localPasses[role] = newPass;
+            localStorage.setItem('app_passwords', JSON.stringify(localPasses));
+
             document.getElementById('adminKeysForm').reset();
             // Recargar la tabla de usuarios
             const rolesRes = await fetch(`${API_BASE}/users`);
@@ -749,19 +845,61 @@ window.renderAdminKeysTable = function () {
         return;
     }
 
+    let localPasses = safeJSONParse('app_passwords', {});
+    if (typeof localPasses === 'string') {
+        try { localPasses = JSON.parse(localPasses); } catch(e) { localPasses = {}; }
+    }
+
+    const defaultPasswords = {
+        "ADMINISTRADOR": "admin", "JEFE OMAI": "jefe", "PERSONAL OMAI": "personal",
+        "LOGISTICA OMAI": "logistica", "INTELIGENCIA OMAI": "inteligencia", "CMDTE GT 51": "cmdte",
+        "CORLOJ": "corloj", "FRAPAL": "frapal", "FRAMOR": "framor", "CORIOS": "corios",
+        "CORMAN": "corman", "ESCLAM": "esclam", "TRAHUA": "trahua", "ESCAUX": "escaux",
+        "TRACAL": "tracal", "TANATA": "tanata", "REMIMB": "remimb", "REMCHI": "remchi",
+        "ESCORB": "escorb", "COMSUB": "comsub"
+    };
+
+    const currentUserRole = sessionStorage.getItem('currentUserRole') || window.currentUserRole;
+
     roles.forEach(role => {
         const tr = document.createElement('tr');
+        
+        let passDisplayHtml = `<span style="color: var(--text-muted); font-style: italic;">Contraseña protegida (solo en servidor)</span>`;
+        
+        if (currentUserRole === 'ADMINISTRADOR') {
+            const pass = localPasses[role] || defaultPasswords[role] || 'Oculta/Cifrada';
+            passDisplayHtml = `
+                <span class="password-mask">••••••••</span>
+                <span class="password-text" style="display:none;">${pass}</span>
+                <button class="btn-action toggle-pass-btn" style="padding:2px 5px; margin-left:10px; font-size:0.75rem;" title="Ocultar/Mostrar">👁️</button>
+            `;
+        }
+
         tr.innerHTML = `
             <td><strong>${role}</strong></td>
-            <td>
-                <span style="color: var(--text-muted); font-style: italic;">Contraseña protegida (solo en servidor)</span>
-            </td>
+            <td>${passDisplayHtml}</td>
             <td style="display:flex; gap:0.5rem; justify-content:center;">
                 <button class="btn-action edit-key-btn" data-role="${role}">Cambiar Clave</button>
                 ${role !== 'ADMINISTRADOR' ? `<button class="delete-btn delete-key-btn" data-role="${role}">&#x1F5D1;&#xFE0F; Borrar</button>` : ''}
             </td>
         `;
         tbody.appendChild(tr);
+    });
+
+    // Añadir lógica para mostrar/ocultar contraseñas
+    document.querySelectorAll('.toggle-pass-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const parent = e.target.parentElement;
+            const mask = parent.querySelector('.password-mask');
+            const text = parent.querySelector('.password-text');
+            if (mask.style.display !== 'none') {
+                mask.style.display = 'none';
+                text.style.display = 'inline';
+            } else {
+                mask.style.display = 'inline';
+                text.style.display = 'none';
+            }
+        });
     });
 
     document.querySelectorAll('.edit-key-btn').forEach(btn => {
@@ -888,6 +1026,37 @@ window.updateORDPATDisplayId = function () {
     const dtg = dtgInput.value || 'XXXXXXR-XXX-2026';
     const serial = seqInput.value || '000';
     displayId.textContent = `${prefix}${dtg}-${serial}-S`;
+};
+
+// Actualiza el PREFIX automáticamente según el GT seleccionado
+window.updateORDPATPrefix = function () {
+    const gtSelect = document.getElementById('opGTSelector');
+    const prefixInput = document.getElementById('opPrefix');
+    if (!gtSelect || !prefixInput) return;
+
+    const selectedId = gtSelect.value;
+    if (!selectedId) {
+        // Sin selección → prefix por defecto
+        prefixInput.value = 'ARE-ORDPAT-UT100.51.4-';
+        window.updateORDPATDisplayId();
+        return;
+    }
+
+    const units = window.orgUnits || [];
+    const unit = units.find(u => u.id === selectedId);
+
+    // Generar código corto: tomar el name, quitar espacios, sustituir puntos por puntos
+    // Ej: "GT 100.51" → "GT100.51"  |  "CODESC Norte" → "CODESCNorte"
+    let refCode = 'UT100.51.4';
+    if (unit) {
+        // Si el nombre ya contiene números tipo "100.xx", lo usamos limpio
+        refCode = (unit.name || unit.id)
+            .replace(/\s+/g, '')   // Sin espacios
+            .toUpperCase();
+    }
+
+    prefixInput.value = `ARE-ORDPAT-${refCode}-`;
+    window.updateORDPATDisplayId();
 };
 
 window.handleNewORDPATClick = function () {
@@ -1210,7 +1379,7 @@ function showAppView(viewId) {
         'crimesTableWrapper', 'dashboardOverlay', 'patrolComplianceView', 'adminKeysView', 'aboutView',
         'postDistributionView', 'ordpatEchoView', 'ordpat51View', 'patrolTemplateRegistryView',
         'adminDataManagementView', 'adminActivityView', 'otherFunctionsView', 'adminOrgView',
-        'regimenDiferenciadoView', 'dailyCodescRegistryView'
+        'regimenDiferenciadoView', 'dailyCodescRegistryView', 'ordpatUnifiedView'
     ];
 
     allViews.forEach(id => {
@@ -1268,15 +1437,25 @@ function showAppView(viewId) {
     if (viewId === 'adminOrgView' && typeof renderOrgUnitsAdmin === 'function') renderOrgUnitsAdmin();
     if (viewId === 'postDistributionView') { if (typeof resetPostConfig === 'function') resetPostConfig(); }
     if (viewId === 'patrolTemplateRegistryView' && typeof refreshTemplateRegistry === 'function') refreshTemplateRegistry();
+    if (viewId === 'ordpatUnifiedView') { if (typeof populateOrdpatUnifiedGTSelector === 'function') populateOrdpatUnifiedGTSelector(); }
     if (viewId === 'dailyCodescRegistryView') {
         populateCodescDailyUnits();
         renderCodescDailyRegistryTable();
         setDefaultCodescDailyOmaiDate();
+        if (typeof renderCodescRequiredPersonnel === 'function') renderCodescRequiredPersonnel();
+        if (typeof renderCodescCompliance === 'function') renderCodescCompliance();
     }
 }
 
 function activateSubmenuView(viewId, btn, hideForm = false) {
     if (!viewId) return;
+
+    // Para los roles de buques, sustituir automáticamente la vista de Registro de Personal por Diario CODESC
+    const currentRole = sessionStorage.getItem('currentUserRole');
+    const coreRoles = ['ADMINISTRADOR', 'JEFE OMAI', 'PERSONAL OMAI', 'LOGISTICA OMAI', 'INTELIGENCIA OMAI', 'CMDTE GT 51'];
+    if (currentRole && !coreRoles.includes(currentRole) && viewId === 'personnelView') {
+        viewId = 'dailyCodescRegistryView';
+    }
 
     isHistoricosView = hideForm;
 
@@ -1335,6 +1514,29 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         // Luego sincronizar con el servidor en segundo plano
         await loadAllDataFromServer();
+
+        // --- AUTOMATIZACIÓN: Archivo Diario (Turnos de 08:00 a 08:00) ---
+        // Verificar si los registros de personal pertenecen a un turno anterior
+        if (typeof personnel !== 'undefined' && personnel.length > 0) {
+            const latestRecordTime = Math.max(...personnel.map(p => parseInt(p.id) || 0));
+            if (latestRecordTime > 0) {
+                // Restamos 8 horas (8 * 60 * 60 * 1000 = 28800000 ms) para alinear el inicio del día a las 08:00
+                const EIGHT_HOURS = 28800000;
+                const recordShiftDate = new Date(latestRecordTime - EIGHT_HOURS).setHours(0, 0, 0, 0);
+                const currentShiftDate = new Date(Date.now() - EIGHT_HOURS).setHours(0, 0, 0, 0);
+                
+                if (recordShiftDate < currentShiftDate) {
+                    console.log("Auto-archiving personnel from previous shifts (before 08:00 today).");
+                    if (typeof personnelHistory !== 'undefined') {
+                        personnelHistory = [...personnelHistory, ...personnel];
+                    }
+                    personnel = [];
+                    if (typeof saveData === 'function') saveData();
+                    showNotification("El personal del turno anterior (antes de las 08:00) ha sido archivado automáticamente.", "info");
+                }
+            }
+        }
+        // ---------------------------------------
 
         // Re-inicializar Auth por si el servidor tiene claves actualizadas
         initAuth();
@@ -3423,7 +3625,7 @@ function populateORDPATSelectors() {
     if (lastDistributionConfig) {
         let config = lastDistributionConfig;
         if (typeof config === 'string') try { config = JSON.parse(config); } catch (e) { }
-        [...(config.fixed || []), ...(config.support || [])].forEach(post => {
+        [...(config.fixed || []), ...(config.support || []), ...(config.operation || [])].forEach(post => {
             post.assigned.forEach(p => {
                 all.push({
                     assignedLocation: post.name,
@@ -3619,17 +3821,8 @@ function deletePersonnel(id) {
         // Refrescar vistas si las funciones existen
         if (typeof renderWatchDivision === 'function') renderWatchDivision();
         if (typeof renderDistribution === 'function') renderDistribution();
-        if (typeof renderDistributionTable === 'function') renderDistributionTable();
-
-        showNotification('Registro de personal eliminado de todos los apartados');
     }
 }
-
-let personnelPostChart = null;
-let personnelUnitChart = null;
-let chartIntelTypeInstance = null;
-let chartIntelHourInstance = null;
-let chartIntelYearInstance = null;
 
 function updatePersonnelStats() {
     const statTotal = document.getElementById('statTotalPersonal');
@@ -3641,7 +3834,7 @@ function updatePersonnelStats() {
 
     if (!statTotal) return;
 
-    // A. CARGAR DATOS SI ESTíN VACÍOS (Persistencia tras refrescar)
+    // A. CARGAR DATOS SI ESTÁN VACÍOS (Persistencia tras refrescar)
     if (personnel.length === 0) {
         baborPersonnel = [];
         estriborPersonnel = [];
@@ -3664,11 +3857,10 @@ function updatePersonnelStats() {
         }
     }
 
-    // --- CíLCULO DE GRUPOS EN FRANCO (Mover al inicio para usar en contadores globales) ---
+    // --- CÁLCULO DE FRANCOS EN TIEMPO REAL ---
     let gtEchoFranco = "N/A";
     let codescFranco = "N/A";
 
-    // A. GT ECHO (Régimen 21/7)
     const echoStartDate = rotationStartDate || localStorage.getItem('rotationStartDate');
     if (echoStartDate) {
         const startE = new Date(echoStartDate + (echoStartDate.includes('T') ? '' : 'T00:00:00'));
@@ -3684,7 +3876,6 @@ function updatePersonnelStats() {
         gtEchoFranco = groupsE[(startIdx + (currentWeekE - 1)) % 4];
     }
 
-    // B. CODESC (Régimen 2x2)
     const codescRefDate = codescStartDate || localStorage.getItem('codescReferenceDate');
     if (codescRefDate) {
         const diffDaysC = Math.floor((new Date().setHours(0, 0, 0, 0) - new Date(codescRefDate).setHours(0, 0, 0, 0)) / (24 * 3600 * 1000));
@@ -3693,7 +3884,6 @@ function updatePersonnelStats() {
         codescFranco = (startGrpC === 'GOLF') ? ((cycleDay < 2) ? 'GOLF' : 'FOXTROT') : ((cycleDay < 2) ? 'FOXTROT' : 'GOLF');
     }
 
-    // C. LOGÍSTICA (Régimen 2x2 Independiente)
     let logisticsFranco = "N/A";
     const logRefDate = logisticsStartDate || localStorage.getItem('logisticsReferenceDate');
     if (logRefDate) {
@@ -3703,13 +3893,11 @@ function updatePersonnelStats() {
         logisticsFranco = (startGrpL === 'ESTRIBOR') ? ((cycleDayL < 2) ? 'ESTRIBOR' : 'BABOR') : ((cycleDayL < 2) ? 'BABOR' : 'ESTRIBOR');
     }
 
-    // Actualizar UI del motor logístico
     const elLogCurrentFranco = document.getElementById('logisticsCurrentFranco');
     if (elLogCurrentFranco) elLogCurrentFranco.textContent = logisticsFranco;
 
-    // --- CÁLCULO DE TOTALES GLOBALES ---
+    // Helper para determinar descanso
     const isPersonInRest = (p) => {
-        // Puesto de Mando (GT 100.51) no entra a régimen de trabajo (siempre operativo)
         const isPM = (typeof commandPostPersonnel !== 'undefined' && commandPostPersonnel &&
             commandPostPersonnel.some(pm => String(pm.id) === String(p.id) || String(pm.idNum) === String(p.idNum))) ||
             String(p.funcion || '').toUpperCase().trim() === 'PM' ||
@@ -3724,48 +3912,61 @@ function updatePersonnelStats() {
             return logisticsFranco !== 'N/A' && rot === logisticsFranco;
         }
 
+        // Si es FOXTROT o GOLF, usamos el Franco de CODESC (2x2)
+        if (rot === 'FOXTROT' || rot === 'GOLF') {
+            return codescFranco !== 'N/A' && rot === codescFranco;
+        }
+
         // Todas las unidades siguen el Régimen 21/7 (GRUPO 1, 2, 3, 4)
         return gtEchoFranco !== 'N/A' && rot === gtEchoFranco;
     };
 
-    // 1. Filtrar unidades activas
-    const activeUnits = window.orgUnits.filter(u => u.status === 'ACTIVE');
+    // --- APLICAR FILTRO SELECCIONADO POR GRUPO DE TAREA (GT) ---
+    const selectedFilter = document.getElementById('statsGtFilter')?.value || 'all';
+
+    const isBelongingToFilter = (item, filter) => {
+        if (filter === 'all') return true;
+        const unitId = item.grupoDestino || item.grupo || item.unit || 'GT_ECHO';
+        return window.isBelongingToUnit({ grupoDestino: unitId }, filter);
+    };
+
+    const filteredPersonnel = personnel.filter(p => isBelongingToFilter(p, selectedFilter));
+    const filteredChoferes = (window.choferes || []).filter(c => isBelongingToFilter(c, selectedFilter));
+    const filteredPM = (window.commandPostPersonnel || []).filter(pm => isBelongingToFilter(pm, selectedFilter));
+    const filteredVulnerable = (window.rdVulnerable || JSON.parse(localStorage.getItem('gyevulnerable') || '[]')).filter(v => isBelongingToFilter(v, selectedFilter));
+    const filteredSuboficiales = (window.rdSuboficiales || JSON.parse(localStorage.getItem('gyesuboficiales') || '[]')).filter(s => isBelongingToFilter(s, selectedFilter));
+
+    // Solo mostrar GTs/unidades de nivel superior (excluir subordinados de SEGURIDAD_MAR_TIMA__HTMC_)
+    const BUQUES_PARENT = 'SEGURIDAD_MAR_TIMA__HTMC_';
+    const activeUnits = window.orgUnits.filter(u => {
+        if (u.status !== 'ACTIVE') return false;
+        if (u.parent === BUQUES_PARENT) return false; // excluir buques individuales
+        if (selectedFilter !== 'all' && !window.isBelongingToUnit({ grupoDestino: u.id }, selectedFilter)) return false;
+        return true;
+    });
     const activeUnitIds = activeUnits.map(u => u.id);
 
-    // 2. Conteos de Logística (Choferes y PM)
-    const choferesList = choferes || [];
-    const pmList = commandPostPersonnel || [];
+    // Conteos
+    const chRest = filteredChoferes.filter(c => isPersonInRest(c)).length;
+    const chOp = filteredChoferes.length - chRest;
 
-    const chRest = choferesList.filter(c => isPersonInRest(c)).length;
-    const chOp = choferesList.length - chRest;
+    const pmRest = filteredPM.filter(p => isPersonInRest(p)).length;
+    const pmOp = filteredPM.length - pmRest;
 
-    const pmRest = pmList.filter(p => isPersonInRest(p)).length;
-    const pmOp = pmList.length - pmRest;
-
-    // 3. Conteos de otras funciones especiales (CPL, COOPNA, Otras)
-    const cplCount = personnel.filter(p => {
-        const f = (p.funcion || '').toUpperCase().trim();
-        return f === 'CPL';
-    }).length;
-
-    const coopnaCount = personnel.filter(p => {
-        const f = (p.funcion || '').toUpperCase().trim();
-        return f === 'COOPNA';
-    }).length;
-
+    const cplCount = filteredPersonnel.filter(p => (p.funcion || '').toUpperCase().trim() === 'CPL').length;
+    const coopnaCount = filteredPersonnel.filter(p => (p.funcion || '').toUpperCase().trim() === 'COOPNA').length;
     const standardFunctions = ['OPERATIVO', 'REACCIÓN', 'REACCION', 'PERSEO', 'FRANCO', 'PM', 'CHOFER', ''];
-    const otrasCount = personnel.filter(p => {
+    const otrasCount = filteredPersonnel.filter(p => {
         const f = (p.funcion || '').toUpperCase().trim();
         return f !== 'CPL' && f !== 'COOPNA' && !standardFunctions.includes(f) && typeof isDesignatedOtherFunction === 'function' && isDesignatedOtherFunction(f);
     }).length;
 
-    // 4. Calcular personal general operativo y en descanso dinámicamente
     let activeUnitsPersonnelCount = 0;
     let activeUnitsOperativosCount = 0;
     let activeUnitsRestCount = 0;
 
-    personnel.forEach(p => {
-        if (isDesignatedOtherFunction(p.funcion)) return; // Excluir otras funciones
+    filteredPersonnel.forEach(p => {
+        if (typeof isDesignatedOtherFunction === 'function' && isDesignatedOtherFunction(p.funcion)) return;
         const unitId = window.resolveOrgUnitId(p.grupoDestino);
         if (activeUnitIds.includes(unitId)) {
             activeUnitsPersonnelCount++;
@@ -3777,8 +3978,7 @@ function updatePersonnelStats() {
         }
     });
 
-    // Total general de todo el personal activo en el sistema
-    const totalGeneral = activeUnitsPersonnelCount + choferesList.length + pmList.length + cplCount + coopnaCount + otrasCount;
+    const totalGeneral = activeUnitsPersonnelCount + filteredChoferes.length + filteredPM.length + cplCount + coopnaCount + otrasCount;
 
     // --- ACTUALIZAR CONTADORES DE FICHAS GLOBALES ---
     if (statTotal) statTotal.textContent = totalGeneral;
@@ -3787,7 +3987,6 @@ function updatePersonnelStats() {
     if (statOperativos) statOperativos.textContent = activeUnitsOperativosCount;
     if (statOtros) statOtros.textContent = activeUnitsRestCount;
 
-    // Operativos Neto conforme a Regla 7 (Efectivos en unidades activas - descansos/franquicias/PM/Chofer/otras funciones)
     const operativosNeto = activeUnitsPersonnelCount - (chRest + pmRest + cplCount + coopnaCount + otrasCount);
 
     const elCPL = document.getElementById('statTotalCPL');
@@ -3800,7 +3999,10 @@ function updatePersonnelStats() {
     if (elOtrasFunc) elOtrasFunc.textContent = otrasCount;
     if (elOperativosNeto) elOperativosNeto.textContent = operativosNeto;
 
-    // Cuadros Separados de Choferes y PM con desglose Op/Desc
+    const elRDTotal = document.getElementById('statRDTotal');
+    if (elRDTotal) elRDTotal.textContent = filteredChoferes.length + filteredVulnerable.length + filteredSuboficiales.length;
+
+    // Choferes y PM Op/Desc
     const elChOp = document.getElementById('statChoferesOp');
     const elChDesc = document.getElementById('statChoferesDesc');
     if (elChOp) elChOp.textContent = chOp;
@@ -3811,83 +4013,130 @@ function updatePersonnelStats() {
     if (elPMOp) elPMOp.textContent = pmOp;
     if (elPMDesc) elPMDesc.textContent = pmRest;
 
-    // --- RÉGIMEN DIFERENCIADO: Contadores de Vulnerable y Suboficiales ---
-    const rdVulnList = window.rdVulnerable || JSON.parse(localStorage.getItem('gyevulnerable') || '[]');
-    const rdSubList = window.rdSuboficiales || JSON.parse(localStorage.getItem('gyesuboficiales') || '[]');
-
-    // Conteos por tipo de vulnerabilidad para estadísticas
+    // Vulnerables y Suboficiales
     const vulStats = {};
-    rdVulnList.forEach(v => {
+    filteredVulnerable.forEach(v => {
         const t = v.tipoVulnerabilidad || 'OTRO';
         vulStats[t] = (vulStats[t] || 0) + 1;
     });
 
-    // Actualizar badges en UI si existen
     const elVulTotal = document.getElementById('statVulnerableTotal');
     const elSubTotal = document.getElementById('statSuboficialesTotal');
-    if (elVulTotal) elVulTotal.textContent = rdVulnList.length;
-    if (elSubTotal) elSubTotal.textContent = rdSubList.length;
+    if (elVulTotal) elVulTotal.textContent = filteredVulnerable.length;
+    if (elSubTotal) elSubTotal.textContent = filteredSuboficiales.length;
 
-    // Actualizar desglose por tipo de vulnerabilidad si existe el contenedor
     const vulStatsContainer = document.getElementById('statVulnerableByType');
-    if (vulStatsContainer && rdVulnList.length > 0) {
-        const TIPO_LABELS = {
-            'SALUD_FISICA': '🏥 Salud Física',
-            'SALUD_MENTAL': '🧠 Salud Mental',
-            'SOCIAL': '👨‍👩‍👧 Situación Social',
-            'EMBARAZO': '🤰 Embarazo',
-            'DISCAPACIDAD': '♿ Discapacidad',
-            'RIESGO_LABORAL': '⚠️ Riesgo Laboral',
-            'OTRO': '📋 Otro'
-        };
-        vulStatsContainer.innerHTML = Object.keys(vulStats).map(k => {
-            const pct = Math.round((vulStats[k] / rdVulnList.length) * 100);
-            return `<div style="margin-bottom:8px;">
-                <div style="display:flex;justify-content:space-between;font-size:0.8rem;font-weight:600;color:#475569;margin-bottom:3px;">
-                    <span>${TIPO_LABELS[k] || k}</span><span style="color:#b91c1c;">${vulStats[k]} (${pct}%)</span>
-                </div>
-                <div style="background:#fef2f2;border-radius:4px;height:6px;overflow:hidden;">
-                    <div style="background:#b91c1c;height:6px;width:${pct}%;transition:width 0.4s;border-radius:4px;"></div>
-                </div>
-            </div>`;
-        }).join('');
+    if (vulStatsContainer) {
+        if (filteredVulnerable.length === 0) {
+            vulStatsContainer.innerHTML = '<span style="font-size:0.75rem; color:#64748b; font-style:italic;">Sin vulnerables en este GT</span>';
+        } else {
+            const TIPO_LABELS = {
+                'SALUD_FISICA': '🏥 Salud Física',
+                'SALUD_MENTAL': '🧠 Salud Mental',
+                'SOCIAL': '👨‍👩‍👧 Situación Social',
+                'EMBARAZO': '🤰 Embarazo',
+                'DISCAPACIDAD': '♿ Discapacidad',
+                'RIESGO_LABORAL': '⚠️ Riesgo Laboral',
+                'OTRO': '📋 Otro'
+            };
+            vulStatsContainer.innerHTML = Object.keys(vulStats).map(k => {
+                const pct = Math.round((vulStats[k] / filteredVulnerable.length) * 100);
+                return `<div style="margin-bottom:8px;">
+                    <div style="display:flex;justify-content:space-between;font-size:0.72rem;font-weight:600;color:#94a3b8;margin-bottom:3px;">
+                        <span>${TIPO_LABELS[k] || k}</span><span style="color:#f87171;">${vulStats[k]} (${pct}%)</span>
+                    </div>
+                    <div style="background:rgba(255,255,255,0.06);border-radius:4px;height:5px;overflow:hidden;">
+                        <div style="background:#f87171;height:5px;width:${pct}%;transition:width 0.4s;border-radius:4px;"></div>
+                    </div>
+                </div>`;
+            }).join('');
+        }
+    }
+
+    // Choferes y Suboficiales - Desglose en cartas
+    const chBabor = filteredChoferes.filter(c => (c.guardia || '').toUpperCase() === 'BABOR').length;
+    const chEstribor = filteredChoferes.filter(c => (c.guardia || '').toUpperCase() === 'ESTRIBOR').length;
+    const elChB = document.getElementById('statChofBabor');
+    const elChE = document.getElementById('statChofEstribor');
+    const elChT = document.getElementById('statChofTotal');
+    if (elChB) elChB.textContent = chBabor;
+    if (elChE) elChE.textContent = chEstribor;
+    if (elChT) elChT.textContent = filteredChoferes.length;
+    const chPct = filteredChoferes.length > 0 ? Math.round((chBabor / filteredChoferes.length) * 100) : 50;
+    const elChBar = document.getElementById('statChofBaborBar');
+    if (elChBar) elChBar.style.width = chPct + '%';
+
+    const subBabor = filteredSuboficiales.filter(s => (s.guardia || '').toUpperCase() === 'BABOR').length;
+    const subEstribor = filteredSuboficiales.filter(s => (s.guardia || '').toUpperCase() === 'ESTRIBOR').length;
+    const elSubB = document.getElementById('statSubBabor');
+    const elSubE = document.getElementById('statSubEstribor');
+    const elSubT = document.getElementById('statSuboficialesTotal');
+    if (elSubB) elSubB.textContent = subBabor;
+    if (elSubE) elSubE.textContent = subEstribor;
+    if (elSubT) elSubT.textContent = filteredSuboficiales.length;
+    const subPct = filteredSuboficiales.length > 0 ? Math.round((subBabor / filteredSuboficiales.length) * 100) : 50;
+    const elSubBar = document.getElementById('statSubBaborBar');
+    if (elSubBar) elSubBar.style.width = subPct + '%';
+
+    // Divs en panel 2x2
+    const elDivBabor = document.getElementById('statDivBabor');
+    const elDivEstribor = document.getElementById('statDivEstribor');
+    if (elDivBabor) elDivBabor.textContent = chBabor;
+    if (elDivEstribor) elDivEstribor.textContent = chEstribor;
+
+    // Logistics franco badge status
+    const logisticsFrancoPanel = document.getElementById('logisticsFrancoPanel');
+    if (logisticsFrancoPanel) {
+        logisticsFrancoPanel.textContent = logisticsFranco !== 'N/A' ? '⚓ FRANCO HOY: ' + logisticsFranco : 'CALC...';
+    }
+    const bStatus = document.getElementById('statDivBaborStatus');
+    const eStatus = document.getElementById('statDivEstriborStatus');
+    if (bStatus) {
+        const isB = logisticsFranco === 'BABOR';
+        bStatus.textContent = isB ? 'FRANCO' : 'OPERATIVO';
+        bStatus.className = 'division-status-pill ' + (isB ? 'pill-franco' : 'pill-operativo');
+    }
+    if (eStatus) {
+        const isE = logisticsFranco === 'ESTRIBOR';
+        eStatus.textContent = isE ? 'FRANCO' : 'OPERATIVO';
+        eStatus.className = 'division-status-pill ' + (isE ? 'pill-franco' : 'pill-operativo');
     }
 
     // --- DYNAMICALLY RENDER TOTAL CARDS BY ACTIVE UNIT ---
     const unitTotalsContainer = document.getElementById('dynamicUnitTotalsContainer');
     if (unitTotalsContainer) {
         const unitCardsHtml = activeUnits.map(unit => {
-            const unitPers = personnel.filter(p => !isDesignatedOtherFunction(p.funcion) && window.isBelongingToUnit(p, unit.id));
+            const unitPers = filteredPersonnel.filter(p => !isDesignatedOtherFunction(p.funcion) && window.isBelongingToUnit(p, unit.id));
             let borderCol = '#3b82f6';
-            if (unit.id === 'GT_ECHO' || unit.id === 'GT ECHO') borderCol = '#16a34a';
-            if (unit.id === 'CODESC') borderCol = '#db2777';
+            if (unit.id === 'GT_ECHO' || unit.id === 'GT ECHO') borderCol = '#10b981';
+            if (unit.id === 'CODESC' || unit.id.toUpperCase().includes('CODESC')) borderCol = '#db2777';
             return `
-                <div class="stat-card" style="border-top: 4px solid ${borderCol};">
-                    <span class="stat-value">${unitPers.length}</span>
-                    <span class="stat-label" style="color: ${borderCol}; font-weight: 700;">Total ${unit.name}</span>
+                <div class="stat-card" style="border-top: 4px solid ${borderCol}; background:#1e293b; border:1px solid rgba(255,255,255,0.06); border-radius:12px; padding: 1rem; text-align: center;">
+                    <span class="stat-value" style="display:block; font-size:2rem; font-weight:900; color:#f1f5f9;">${unitPers.length}</span>
+                    <span class="stat-label" style="font-size:0.7rem; color: ${borderCol}; font-weight: 700; display:block; margin-top:5px;">Total ${unit.name}</span>
                 </div>
             `;
         }).join('');
-        unitTotalsContainer.innerHTML = unitCardsHtml;
+        unitTotalsContainer.innerHTML = unitCardsHtml || '<div style="color: #94a3b8; font-style: italic; font-size: 0.8rem; text-align: center; width: 100%;">Sin unidades en este GT</div>';
     }
 
     // --- DYNAMICALLY RENDER SUB-LABEL NET SUMMARY ---
     const netSummaryLabelContainer = document.getElementById('dynamicNetSummaryLabel');
     if (netSummaryLabelContainer) {
-        // Encontrar la unidad principal activa (o la primera)
-        const primaryUnit = activeUnits.find(u => u.id === 'GT_ECHO') || activeUnits[0];
+        const primaryUnit = activeUnits.find(u => u.id === 'GT_ECHO' || u.id === 'GT_100_51') || activeUnits[0];
         if (primaryUnit) {
-            const unitPers = personnel.filter(p => !isDesignatedOtherFunction(p.funcion) && window.isBelongingToUnit(p, primaryUnit.id));
+            const unitPers = filteredPersonnel.filter(p => !isDesignatedOtherFunction(p.funcion) && window.isBelongingToUnit(p, primaryUnit.id));
             const otherFuncInUnit = unitPers.filter(p => typeof isDesignatedOtherFunction === 'function' && isDesignatedOtherFunction(p.funcion)).length;
             const unitNeto = Math.max(0, unitPers.length - otherFuncInUnit);
 
             let labelCol = '#16a34a';
-            if (primaryUnit.id === 'CODESC') labelCol = '#db2777';
+            if (primaryUnit.id.toUpperCase().includes('CODESC')) labelCol = '#db2777';
             else if (primaryUnit.id !== 'GT_ECHO') labelCol = '#3b82f6';
 
+            netSummaryLabelContainer.style.display = 'block';
             netSummaryLabelContainer.innerHTML = `
                 <span style="font-size: 0.8rem;">📋</span>
-                <p style="margin: 0; font-size: 0.78rem; color: #64748b;">
+                <p style="margin: 0; font-size: 0.78rem; color: #94a3b8;">
                     <strong>Total ${primaryUnit.name} (Neto):</strong> <span id="statGtEchoNeto"
                         style="font-weight: 900; color: ${labelCol};">${unitNeto}</span> — descontando CPL + COOPNA + Otras
                     Funciones del total ${primaryUnit.name}.
@@ -3906,10 +4155,10 @@ function updatePersonnelStats() {
             const isGT10051 = unit.id.includes('100.51') || unit.name.includes('100.51') || unit.id === 'PM' || unit.name.toUpperCase().includes('PUESTO DE MANDO');
             if (isGT10051) {
                 const pmSet = new Set();
-                pmList.forEach(p => pmSet.add(p.idNum || p.id));
+                filteredPM.forEach(p => pmSet.add(p.idNum || p.id));
 
-                const pmEfectivos = [...pmList];
-                personnel.forEach(p => {
+                const pmEfectivos = [...filteredPM];
+                filteredPersonnel.forEach(p => {
                     const resUnitId = window.resolveOrgUnitId(p.grupoDestino);
                     if (resUnitId === unit.id && !pmSet.has(p.idNum || p.id)) {
                         pmEfectivos.push(p);
@@ -3925,30 +4174,30 @@ function updatePersonnelStats() {
                 const crewCount = pmEfectivos.length - officersCount;
                 const totalPM = pmEfectivos.length;
 
-                let borderCol = '#1e40af';
-                let borderSub = '#93c5fd';
+                let borderCol = '#3b82f6';
+                let borderSub = 'rgba(255, 255, 255, 0.06)';
 
                 groupsHtml += `
-                    <div style="background: white; padding: 1.5rem; border-radius: var(--radius); border: 1px solid var(--border); box-shadow: var(--shadow); border-top: 4px solid ${borderCol};">
-                        <h3 style="color: ${borderCol}; font-family: 'Outfit', sans-serif; font-weight: 800; font-size: 1rem; border-bottom: 2px solid ${borderSub}; padding-bottom: 0.5rem; margin-bottom: 1.5rem; display: flex; justify-content: space-between; align-items: center; text-transform: uppercase; letter-spacing: 0.5px;">
+                    <div style="background: #1e293b; padding: 1.5rem; border-radius: var(--radius); border: 1px solid rgba(255, 255, 255, 0.06); border-top: 4px solid ${borderCol};">
+                        <h3 style="color: #cbd5e1; font-family: 'Outfit', sans-serif; font-weight: 800; font-size: 0.9rem; border-bottom: 1px solid ${borderSub}; padding-bottom: 0.5rem; margin-bottom: 1.25rem; display: flex; justify-content: space-between; align-items: center; text-transform: uppercase; letter-spacing: 0.5px;">
                             <span>${unit.name}</span>
-                            <span style="font-size: 0.65rem; background: #eff6ff; color: #1e40af; border: 1px dashed #3b82f6; padding: 3px 10px; border-radius: 20px; font-weight: 700; letter-spacing: 0.5px;">SIN RÉGIMEN (DIARIO)</span>
+                            <span style="font-size: 0.65rem; background: rgba(59, 130, 246, 0.1); color: #93c5fd; border: 1px dashed rgba(59, 130, 246, 0.25); padding: 3px 10px; border-radius: 20px; font-weight: 700; letter-spacing: 0.5px;">SIN RÉGIMEN (DIARIO)</span>
                         </h3>
                         <div style="display: flex; gap: 1.5rem; align-items: center; justify-content: space-between; flex-wrap: wrap;">
                             <div style="flex: 1; display: flex; flex-direction: column; gap: 0.5rem; min-width: 150px;">
-                                <div style="display: flex; justify-content: space-between; align-items: center; background: #f8fafc; border: 1px solid #e2e8f0; padding: 10px 16px; border-radius: 8px;">
-                                    <span style="font-weight: 700; color: #475569; font-size: 0.85rem;">👨‍✈️ Oficiales:</span>
-                                    <span style="font-weight: 900; color: #1e40af; font-size: 1.1rem;">${officersCount}</span>
+                                <div style="display: flex; justify-content: space-between; align-items: center; background: #0f172a; border: 1px solid rgba(255, 255, 255, 0.06); padding: 10px 16px; border-radius: 8px;">
+                                    <span style="font-weight: 700; color: #94a3b8; font-size: 0.85rem;">👨‍✈️ Oficiales:</span>
+                                    <span style="font-weight: 900; color: #60a5fa; font-size: 1.1rem;">${officersCount}</span>
                                 </div>
-                                <div style="display: flex; justify-content: space-between; align-items: center; background: #f8fafc; border: 1px solid #e2e8f0; padding: 10px 16px; border-radius: 8px;">
-                                    <span style="font-weight: 700; color: #475569; font-size: 0.85rem;">👮‍♂️ Tripulantes:</span>
-                                    <span style="font-weight: 900; color: #1e40af; font-size: 1.1rem;">${crewCount}</span>
+                                <div style="display: flex; justify-content: space-between; align-items: center; background: #0f172a; border: 1px solid rgba(255, 255, 255, 0.06); padding: 10px 16px; border-radius: 8px;">
+                                    <span style="font-weight: 700; color: #94a3b8; font-size: 0.85rem;">👮‍♂️ Tripulantes:</span>
+                                    <span style="font-weight: 900; color: #60a5fa; font-size: 1.1rem;">${crewCount}</span>
                                 </div>
                             </div>
-                            <div style="flex: 0 0 140px; background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%); border: 1.5px solid #bfdbfe; border-radius: 12px; padding: 15px; text-align: center; display: flex; flex-direction: column; justify-content: center; align-items: center; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.05); margin: 0 auto;">
-                                <span style="font-weight: 800; color: #1e3a8a; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 5px;">Total Diario</span>
-                                <span style="font-weight: 950; color: #1d4ed8; font-size: 2.2rem; line-height: 1;">${totalPM}</span>
-                                <span style="font-size: 0.65rem; color: #1e40af; font-weight: 700; margin-top: 5px; background: #bfdbfe; padding: 2px 8px; border-radius: 10px;">Efectivos</span>
+                            <div style="flex: 0 0 140px; background: linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(59, 130, 246, 0.05) 100%); border: 1.5px solid rgba(59, 130, 246, 0.2); border-radius: 12px; padding: 15px; text-align: center; display: flex; flex-direction: column; justify-content: center; align-items: center; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.05); margin: 0 auto;">
+                                <span style="font-weight: 800; color: #93c5fd; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 5px;">Total Diario</span>
+                                <span style="font-weight: 950; color: #60a5fa; font-size: 2.2rem; line-height: 1;">${totalPM}</span>
+                                <span style="font-size: 0.65rem; color: #93c5fd; font-weight: 700; margin-top: 5px; background: rgba(59, 130, 246, 0.2); padding: 2px 8px; border-radius: 10px;">Efectivos</span>
                             </div>
                         </div>
                     </div>
@@ -3956,12 +4205,29 @@ function updatePersonnelStats() {
                 return;
             }
 
-            const unitPers = personnel.filter(p => !isDesignatedOtherFunction(p.funcion) && window.isBelongingToUnit(p, unit.id));
+            const unitPers = filteredPersonnel.filter(p => !isDesignatedOtherFunction(p.funcion) && window.isBelongingToUnit(p, unit.id));
 
-            let unitGroups = ['GRUPO 1', 'GRUPO 2', 'GRUPO 3', 'GRUPO 4'];
+            // Dynamically determine the groups present in this unit's personnel
+            let unitGroups = [];
+            unitPers.forEach(p => {
+                const rot = normalizeGroup(p.rotacion || p.guardia || p.grupo);
+                if (rot && rot !== 'N/A' && rot !== '') {
+                    unitGroups.push(rot);
+                }
+            });
+            unitGroups = [...new Set(unitGroups)].sort();
+            if (unitGroups.length === 0) {
+                const idUpper = unit.id.toUpperCase();
+                if (idUpper.includes('CODESC')) {
+                    unitGroups = ['FOXTROT', 'GOLF'];
+                } else if (idUpper.includes('FRAPAL') || idUpper.includes('FRAMOR') || idUpper.includes('100.51')) {
+                    unitGroups = ['BABOR', 'ESTRIBOR'];
+                } else {
+                    unitGroups = ['GRUPO 1', 'GRUPO 2', 'GRUPO 3', 'GRUPO 4'];
+                }
+            }
+
             const isCodesc = unit.id.toUpperCase().includes('CODESC');
-
-
 
             let francoLabel = 'Sin configurar';
             let unitFranco = 'N/A';
@@ -3969,32 +4235,30 @@ function updatePersonnelStats() {
             if (isEchoRegime) {
                 unitFranco = gtEchoFranco;
                 francoLabel = gtEchoFranco !== 'N/A' ? `FRANCO: ${gtEchoFranco}` : 'FRANCO: Sin configurar';
-            } else if (unit.id === 'CODESC') {
+            } else if (isCodesc) {
                 unitFranco = codescFranco;
                 francoLabel = codescFranco !== 'N/A' ? `FRANCO: ${codescFranco}` : 'FRANCO: Sin configurar';
+            } else if (unit.id === 'GT_100_51' || unit.id === 'FRAPAL' || unit.id === 'FRAMOR') {
+                unitFranco = logisticsFranco;
+                francoLabel = logisticsFranco !== 'N/A' ? `FRANCO: ${logisticsFranco}` : 'FRANCO: Sin configurar';
             } else {
                 unitFranco = gtEchoFranco;
                 francoLabel = gtEchoFranco !== 'N/A' ? `FRANCO: ${gtEchoFranco}` : 'FRANCO: Sin configurar';
             }
 
             let borderCol = '#3b82f6';
-            let borderSub = '#bfdbfe';
+            let borderSub = 'rgba(255, 255, 255, 0.06)';
             if (isEchoRegime) {
-                borderCol = '#16a34a';
-                borderSub = '#bbf7d0';
-            } else if (unit.id === 'CODESC') {
+                borderCol = '#10b981';
+            } else if (isCodesc) {
                 borderCol = '#db2777';
-                borderSub = '#fbcfe8';
             }
 
             const groupCardsHtml = unitGroups.map(grpName => {
-                // Contar desde personal general
                 const countGeneral = unitPers.filter(p => normalizeGroup(p.rotacion) === grpName).length;
-                // Contar desde Choferes
-                const countChoferesGrp = choferesList.filter(c => {
+                const countChoferesGrp = filteredChoferes.filter(c => {
                     const hasGroupMatch = window.resolveOrgUnitId(c.grupo) === unit.id;
                     const hasGuardMatch = normalizeGroup(c.guardia) === grpName;
-
                     if (isCodesc) {
                         const rot = normalizeGroup(c.guardia);
                         if (grpName === 'FOXTROT') return hasGroupMatch && (rot === 'BABOR' || rot === 'FOXTROT');
@@ -4003,11 +4267,9 @@ function updatePersonnelStats() {
                     return hasGroupMatch && hasGuardMatch;
                 }).length;
 
-                // Contar desde PM
-                const countPMGrp = pmList.filter(pm => {
+                const countPMGrp = filteredPM.filter(pm => {
                     const hasGroupMatch = window.resolveOrgUnitId(pm.grupoDestino) === unit.id;
                     const hasGuardMatch = normalizeGroup(pm.grupo) === grpName;
-
                     if (isCodesc) {
                         const rot = normalizeGroup(pm.grupo);
                         if (grpName === 'FOXTROT') return hasGroupMatch && (rot === 'BABOR' || rot === 'FOXTROT');
@@ -4019,29 +4281,30 @@ function updatePersonnelStats() {
                 const grpCount = countGeneral + countChoferesGrp + countPMGrp;
 
                 let textCol = '#3b82f6';
-                if (grpName === 'GRUPO 2' || grpName === 'GOLF') textCol = '#10b981';
+                if (grpName === 'GRUPO 2' || grpName === 'GOLF' || grpName === 'ESTRIBOR') textCol = '#10b981';
                 if (grpName === 'GRUPO 3') textCol = '#f59e0b';
                 if (grpName === 'GRUPO 4') textCol = '#8b5cf6';
                 if (grpName === 'FOXTROT') textCol = '#db2777';
 
                 const isFranco = grpName === unitFranco;
                 const cardStyle = isFranco
-                    ? `padding: 1rem; background: ${isCodesc ? '#fdf2f8' : '#f1f5f9'}; border: 2px dashed ${borderCol}; border-radius: 10px; box-shadow: none;`
-                    : `padding: 1rem; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; box-shadow: none;`;
+                    ? `padding: 1rem; background: rgba(37,99,235,0.08); border: 2px dashed ${borderCol}; border-radius: 10px;`
+                    : `padding: 1rem; background: #0f172a; border: 1px solid rgba(255,255,255,0.06); border-radius: 10px;`;
 
                 return `
-                    <div class="stat-card" style="${cardStyle}">
-                        <span class="stat-value" style="font-size: 1.5rem; color: ${textCol};">${grpCount}</span>
-                        <span class="stat-label" style="font-size: 0.65rem; font-weight: 700; color: ${textCol}; margin-top: 5px;">${grpName}</span>
+                    <div class="stat-card" style="${cardStyle}; text-align:center;">
+                        <span class="stat-value" style="font-size: 1.5rem; color: ${textCol}; font-weight:900; display:block;">${grpCount}</span>
+                        <span class="stat-label" style="font-size: 0.65rem; font-weight: 700; color: #94a3b8; display:block; margin-top: 5px; text-transform:uppercase;">${grpName}</span>
+                        ${isFranco ? `<span style="font-size: 0.55rem; color: #fbbf24; font-weight: 800; margin-top: 3px; display:inline-block; background: rgba(251, 191, 36, 0.15); padding: 1px 6px; border-radius: 10px;">FRANCO</span>` : ''}
                     </div>
                 `;
             }).join('');
 
             groupsHtml += `
-                <div style="background: white; padding: 1.5rem; border-radius: var(--radius); border: 1px solid var(--border); box-shadow: var(--shadow); border-top: 4px solid ${borderCol};">
-                    <h3 style="color: ${borderCol}; font-family: 'Outfit', sans-serif; font-weight: 800; font-size: 1rem; border-bottom: 2px solid ${borderSub}; padding-bottom: 0.5rem; margin-bottom: 1.5rem; display: flex; justify-content: space-between; align-items: center; text-transform: uppercase; letter-spacing: 0.5px;">
+                <div style="background: #1e293b; padding: 1.5rem; border-radius: var(--radius); border: 1px solid rgba(255, 255, 255, 0.06); border-top: 4px solid ${borderCol};">
+                    <h3 style="color: #cbd5e1; font-family: 'Outfit', sans-serif; font-weight: 800; font-size: 0.9rem; border-bottom: 1px solid ${borderSub}; padding-bottom: 0.5rem; margin-bottom: 1.25rem; display: flex; justify-content: space-between; align-items: center; text-transform: uppercase; letter-spacing: 0.5px;">
                         <span>Grupos ${unit.name}</span>
-                        <span style="font-size: 0.65rem; background: #f1f5f9; color: #64748b; border: 1px dashed #94a3b8; padding: 3px 10px; border-radius: 20px; font-weight: 700; letter-spacing: 0.5px;">${francoLabel}</span>
+                        <span style="font-size: 0.65rem; background: rgba(255, 255, 255, 0.05); color: #94a3b8; border: 1px dashed rgba(255, 255, 255, 0.15); padding: 3px 10px; border-radius: 20px; font-weight: 700; letter-spacing: 0.5px;">${francoLabel}</span>
                     </h3>
                     <div style="display: grid; grid-template-columns: repeat(${Math.min(4, unitGroups.length)}, 1fr); gap: 1rem;">
                         ${groupCardsHtml}
@@ -4049,23 +4312,25 @@ function updatePersonnelStats() {
                 </div>
             `;
         });
-        groupsContainer.innerHTML = groupsHtml;
+        groupsContainer.innerHTML = groupsHtml || '<div style="color: #94a3b8; font-style: italic; font-size: 0.8rem; text-align: center; grid-column: span 2;">Sin grupos para este GT</div>';
     }
 
-    // --- ACTUALIZAR GRíFICO: EFECTIVOS POR PUESTO (Simplificado) ---
+    // --- ACTUALIZAR GRÁFICO: EFECTIVOS POR PUESTO ---
     let allPosts = [];
-    const counts = {
-        operativos: {},
-        descanso: {}
-    };
+    const counts = { operativos: {}, descanso: {} };
 
     const allAssignments = [...specialAssignments, ...guardAssignments];
-    allAssignments.forEach(a => {
+    const filteredAssignments = allAssignments.filter(a => {
+        const p = filteredPersonnel.find(x => String(x.id) === String(a.id));
+        return !!p;
+    });
+
+    filteredAssignments.forEach(a => {
         const loc = a.assignedLocation || "Otro";
         if (loc === "Otro") return;
 
-        const person = personnel.find(p => String(p.id) === String(a.id));
-        if (!person || isDesignatedOtherFunction(person.funcion)) return;
+        const person = filteredPersonnel.find(p => String(p.id) === String(a.id));
+        if (!person || (typeof isDesignatedOtherFunction === 'function' && isDesignatedOtherFunction(person.funcion))) return;
 
         const inRest = isPersonInRest(person);
         if (inRest) {
@@ -4075,19 +4340,18 @@ function updatePersonnelStats() {
         }
     });
 
-    allPosts = [...new Set([
-        ...Object.keys(counts.operativos), ...Object.keys(counts.descanso)
-    ])].sort();
+    allPosts = [...new Set([...Object.keys(counts.operativos), ...Object.keys(counts.descanso)])].sort();
 
     const ctxPost = document.getElementById('personnelPostChart');
     if (ctxPost) {
-        if (personnelPostChart) personnelPostChart.destroy();
+        const existingPost = Chart.getChart(ctxPost);
+        if (existingPost) existingPost.destroy();
         personnelPostChart = new Chart(ctxPost.getContext('2d'), {
             type: 'bar',
             data: {
                 labels: allPosts,
                 datasets: [
-                    { label: 'OPERATIVOS', data: allPosts.map(p => counts.operativos[p] || 0), backgroundColor: '#1d4ed8' },
+                    { label: 'OPERATIVOS', data: allPosts.map(p => counts.operativos[p] || 0), backgroundColor: '#3b82f6' },
                     { label: 'DESCANSO OPERACIONAL', data: allPosts.map(p => counts.descanso[p] || 0), backgroundColor: '#f97316' }
                 ]
             },
@@ -4097,17 +4361,16 @@ function updatePersonnelStats() {
                 scales: {
                     y: {
                         beginAtZero: true,
-                        stacked: false, // Quitar stack global para ver grupos de estados
-                        ticks: { stepSize: 1, color: '#64748b' },
-                        grid: { color: 'rgba(226, 232, 240, 0.5)' }
+                        ticks: { stepSize: 1, color: '#94a3b8' },
+                        grid: { color: 'rgba(255, 255, 255, 0.05)' }
                     },
                     x: {
-                        ticks: { color: '#64748b', font: { size: 10 } },
+                        ticks: { color: '#94a3b8', font: { size: 10 } },
                         grid: { display: false }
                     }
                 },
                 plugins: {
-                    legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 10 }, color: '#64748b' } },
+                    legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 10 }, color: '#94a3b8' } },
                     datalabels: {
                         anchor: 'center', align: 'center',
                         formatter: (val) => val > 0 ? val : '',
@@ -4119,35 +4382,41 @@ function updatePersonnelStats() {
         });
     }
 
-    // 3. Reparto por Estado Operativo
+    // 3. Reparto por Unidad Táctica (solo GTs activos de nivel superior, sin subordinados de buques)
     const unitStateCounts = {};
-    personnel.forEach(p => {
-        if (isDesignatedOtherFunction(p.funcion)) return; // Exclude other functions
-        const u = p.unit || "S/R";
-        if (!unitStateCounts[u]) unitStateCounts[u] = { operativos: 0, descanso: 0 };
+    activeUnits.forEach(unit => { unitStateCounts[unit.name] = { operativos: 0, descanso: 0 }; });
 
+    filteredPersonnel.forEach(p => {
+        if (typeof isDesignatedOtherFunction === 'function' && isDesignatedOtherFunction(p.funcion)) return;
+        // Encontrar el GT activo de nivel superior al que pertenece esta persona
+        const matchedUnit = activeUnits.find(unit => window.isBelongingToUnit(p, unit.id));
+        if (!matchedUnit) return;
         if (isPersonInRest(p)) {
-            unitStateCounts[u].descanso++;
+            unitStateCounts[matchedUnit.name].descanso++;
         } else {
-            unitStateCounts[u].operativos++;
+            unitStateCounts[matchedUnit.name].operativos++;
         }
     });
 
     const allUnitsSorted = Object.keys(unitStateCounts).sort();
     const unitDatasets = [
-        { label: 'OPERATIVOS', data: allUnitsSorted.map(u => unitStateCounts[u].operativos), backgroundColor: '#1d4ed8' },
+        { label: 'OPERATIVOS', data: allUnitsSorted.map(u => unitStateCounts[u].operativos), backgroundColor: '#3b82f6' },
         { label: 'DESCANSO OPERACIONAL', data: allUnitsSorted.map(u => unitStateCounts[u].descanso), backgroundColor: '#f97316' }
     ];
 
     const ctxUnit = document.getElementById('personnelUnitChart');
     if (ctxUnit) {
-        if (personnelUnitChart) personnelUnitChart.destroy();
+        const existingUnit = Chart.getChart(ctxUnit);
+        if (existingUnit) existingUnit.destroy();
         personnelUnitChart = new Chart(ctxUnit.getContext('2d'), {
             type: 'bar',
             data: { labels: allUnitsSorted, datasets: unitDatasets },
             options: {
                 indexAxis: 'y', responsive: true, maintainAspectRatio: false,
-                scales: { x: { stacked: true }, y: { stacked: true } },
+                scales: {
+                    x: { stacked: true, ticks: { color: '#94a3b8' }, grid: { color: 'rgba(255,255,255,0.05)' } },
+                    y: { stacked: true, ticks: { color: '#94a3b8' }, grid: { display: false } }
+                },
                 plugins: {
                     datalabels: { color: '#ffffff', font: { weight: 'bold', size: 10 }, formatter: (v) => v > 0 ? v : '' }
                 }
@@ -9098,7 +9367,7 @@ function getPersonnelSnapshot(puesto, turno) {
         let config = lastDistributionConfig;
         if (typeof config === 'string') try { config = JSON.parse(config); } catch (e) { }
 
-        [...(config.fixed || []), ...(config.support || [])].forEach(post => {
+        [...(config.fixed || []), ...(config.support || []), ...(config.operation || [])].forEach(post => {
             post.assigned.forEach(p => {
                 rawAll.push({
                     id: p.id,
@@ -11120,18 +11389,17 @@ window.updatePostRowFunctions = function (row, selectedFuncs = []) {
     const dropdown = row.querySelector('.multi-select-dropdown');
     if (!unitSelect || !dropdown) return;
 
-    const unitId = unitSelect.value;
-
-    // Filtrar personal operativo que pertenezca a esta unidad
-    const unitPersonnel = (typeof personnel !== 'undefined' ? personnel : []).filter(p => {
-        if (isDesignatedOtherFunction(p.funcion)) return false;
-        const cond = (p.condition || 'OPERATIVO').toUpperCase();
-        if (cond === 'BAJA' || cond === 'INACTIVO') return false;
-        
-        return window.resolveOrgUnitId(p.grupoDestino) === unitId;
-    });
-
-    const functions = [...new Set(unitPersonnel.map(p => (p.funcion || 'OPERATIVO').toUpperCase()))].sort();
+    // Obtener todas las funciones operativas de TODO el personal (sin filtrar por unidad)
+    const allPersonnel = (typeof personnel !== 'undefined' ? personnel : []);
+    const functions = [...new Set(allPersonnel
+        .filter(p => {
+            if (isDesignatedOtherFunction(p.funcion)) return false;
+            const cond = (p.condition || 'OPERATIVO').toUpperCase();
+            if (cond === 'BAJA' || cond === 'INACTIVO') return false;
+            return true;
+        })
+        .map(p => (p.funcion || 'OPERATIVO').toUpperCase())
+    )].sort();
 
     dropdown.innerHTML = functions.map(f => `
         <label class="multi-select-option">
@@ -11203,22 +11471,15 @@ window.addPostRow = function (tbodyId, data = { name: '', schedule: '', unitId: 
     const tbody = document.getElementById(tbodyId);
     if (!tbody) return;
 
-    const isFixed = (tbodyId === 'fixedPostsBody');
     const activeUnits = (window.orgUnits || []).filter(u => u.status === 'ACTIVE');
 
     // Determinar la unidad por defecto
     let defaultUnitId = data.unitId || '';
     if (!defaultUnitId) {
-        if (isFixed) {
-            const codescUnit = activeUnits.find(u => u.id.toUpperCase().includes('CODESC') || u.name.toUpperCase().includes('100.61'));
-            defaultUnitId = codescUnit ? codescUnit.id : (activeUnits[0]?.id || '');
-        } else {
-            const echoUnit = activeUnits.find(u => u.id.toUpperCase().includes('ECHO') || u.name.toUpperCase().includes('100.51'));
-            defaultUnitId = echoUnit ? echoUnit.id : (activeUnits[0]?.id || '');
-        }
+        defaultUnitId = activeUnits[0]?.id || '';
     }
 
-    // Generar opciones del dropdown de unidades
+    // Generar opciones del dropdown de unidades (UTs activadas)
     const unitOptionsHtml = activeUnits.map(u => `
         <option value="${u.id}" ${u.id === defaultUnitId ? 'selected' : ''}>${u.name || u.id}</option>
     `).join('');
@@ -11227,31 +11488,36 @@ window.addPostRow = function (tbodyId, data = { name: '', schedule: '', unitId: 
     row.className = 'post-config-row';
 
     row.innerHTML = `
-        <td style="padding: 5px;">
-            <input type="text" class="post-name" value="${data.name || ''}" placeholder="Puesto..." style="width: 100%; border: 1px solid #e2e8f0; padding: 4px 8px; border-radius: 4px; font-size: 0.8rem;">
+        <td style="padding: 6px 4px; vertical-align: middle; min-width: 120px;">
+            <input type="text" class="post-name" value="${data.name || ''}" placeholder="Puesto..." 
+                style="width: 100%; height: 30px; border: 1px solid #cbd5e1; padding: 4px 8px; border-radius: 6px; font-size: 0.78rem; background: #ffffff; color: #1e293b;">
         </td>
-        <td style="padding: 5px;">
-            <input type="text" class="post-sched" value="${data.schedule || ''}" placeholder="Horario..." style="width: 100%; border: 1px solid #e2e8f0; padding: 4px 8px; border-radius: 4px; font-size: 0.8rem;">
+        <td style="padding: 6px 4px; vertical-align: middle; min-width: 80px;">
+            <input type="text" class="post-sched" value="${data.schedule || ''}" placeholder="Horario..." 
+                style="width: 100%; height: 30px; border: 1px solid #cbd5e1; padding: 4px 6px; border-radius: 6px; font-size: 0.78rem; text-align: center; background: #ffffff; color: #1e293b;">
         </td>
-        <td style="padding: 5px;">
-            <select class="post-unit" onchange="window.updatePostRowFunctions(this.closest('tr'));" style="width: 100%; border: 1px solid #e2e8f0; padding: 4px 8px; border-radius: 4px; font-size: 0.8rem;">
+        <td style="padding: 6px 4px; vertical-align: middle; min-width: 100px;">
+            <select class="post-unit" onchange="window.updatePostRowFunctions(this.closest('tr'));" 
+                style="width: 100%; height: 30px; border: 1px solid #cbd5e1; padding: 4px 8px; border-radius: 6px; font-size: 0.78rem; background: #ffffff; color: #1e293b;">
                 ${unitOptionsHtml}
             </select>
         </td>
-        <td style="padding: 5px;">
+        <td style="padding: 6px 4px; vertical-align: middle; min-width: 150px;">
             <div class="multi-select-container">
-                <div class="multi-select-trigger" onclick="toggleMultiSelect(this)">
-                    <span class="trigger-label">-- Seleccionar Funciones --</span>
-                    <span class="arrow"></span>
+                <div class="multi-select-trigger" onclick="toggleMultiSelect(this)" 
+                    style="width: 100%; height: 30px; border: 1px solid #cbd5e1; padding: 4px 8px; border-radius: 6px; background: #ffffff; display: flex; align-items: center; justify-content: space-between; cursor: pointer;">
+                    <span class="trigger-label" style="font-size: 0.78rem; color: #94a3b8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: calc(100% - 15px);">-- Seleccionar Funciones --</span>
+                    <span class="arrow" style="font-size: 0.6rem; color: #64748b;">▼</span>
                 </div>
                 <div class="multi-select-dropdown">
                     <!-- Se carga dinámicamente -->
                 </div>
-                <div class="function-counts" style="font-size: 0.65rem; color: #64748b; margin-top: 4px; font-weight: 700;"></div>
+                <div class="function-counts" style="font-size: 0.65rem; color: #64748b; margin-top: 4px; font-weight: 700; min-height: 12px;"></div>
             </div>
         </td>
-        <td style="padding: 5px; text-align: center;">
-            <button class="btn-action delete" onclick="this.closest('tr').remove();" title="Eliminar">🗑️</button>
+        <td style="padding: 6px 4px; vertical-align: middle; text-align: center; min-width: 40px;">
+            <button class="btn-action delete" onclick="this.closest('tr').remove();" title="Eliminar"
+                style="height: 30px; width: 30px; border-radius: 6px; padding: 0; display: inline-flex; align-items: center; justify-content: center; font-size: 0.9rem; cursor: pointer; border: 1px solid #fca5a5; background: #fef2f2; color: #ef4444; transition: all 0.2s;">🗑️</button>
         </td>
     `;
     tbody.appendChild(row);
@@ -11269,21 +11535,76 @@ window.addPostRow = function (tbodyId, data = { name: '', schedule: '', unitId: 
     document.addEventListener('click', closeDropdownHandler);
 };
 
+window.updateAllPostUnitDropdowns = function () {
+    const activeUnits = (window.orgUnits || []).filter(u => u.status === 'ACTIVE');
+    const rows = document.querySelectorAll('#operationPostsBody .post-config-row');
+    rows.forEach(row => {
+        const select = row.querySelector('.post-unit');
+        if (select) {
+            const currentValue = select.value;
+            select.innerHTML = activeUnits.map(u => `
+                <option value="${u.id}" ${u.id === currentValue ? 'selected' : ''}>${u.name || u.id}</option>
+            `).join('');
+            if (!currentValue || !activeUnits.some(u => u.id === currentValue)) {
+                if (activeUnits.length > 0) {
+                    select.value = activeUnits[0].id;
+                }
+                window.updatePostRowFunctions(row);
+            }
+        }
+    });
+};
+
 window.resetPostConfig = function (force = false) {
-    const fixedBody = document.getElementById('fixedPostsBody');
-    const supportBody = document.getElementById('supportPostsBody');
-    if (!fixedBody || !supportBody) return;
+    const operationBody = document.getElementById('operationPostsBody');
+    if (!operationBody) return;
 
-    if (!force && (fixedBody.children.length > 0 || supportBody.children.length > 0)) return;
+    if (!force && operationBody.children.length > 0) return;
 
-    fixedBody.innerHTML = '';
-    supportBody.innerHTML = '';
+    operationBody.innerHTML = '';
 
-    addPostRow('fixedPostsBody', { name: 'PUESTO DE GUARDIA 1', schedule: '08:00 - 08:00' });
-    addPostRow('fixedPostsBody', { name: 'PUESTO DE GUARDIA 2', schedule: '08:00 - 08:00' });
-    addPostRow('supportPostsBody', { name: 'PATRULLAJE GT ECHO', schedule: 'TURNO 1' });
+    let loaded = false;
+    let config = lastDistributionConfig;
+    if (typeof config === 'string') {
+        try { config = JSON.parse(config); } catch (e) { config = null; }
+    }
 
-    showNotification("Vista de puestos configurada con valores base. Seleccione la unidad, función y personal.");
+    if (config && Array.isArray(config.operation) && config.operation.length > 0) {
+        config.operation.forEach(post => {
+            if (post.name.startsWith('DISPONIBLES / RELEVO')) return;
+            addPostRow('operationPostsBody', {
+                name: post.name,
+                schedule: post.schedule,
+                unitId: post.unitId,
+                funcion: post.funciones || post.funcion || []
+            });
+        });
+        loaded = true;
+    } else if (config && ((Array.isArray(config.fixed) && config.fixed.length > 0) || (Array.isArray(config.support) && config.support.length > 0))) {
+        // Cargar desde configuración antigua para migración sin problemas
+        const oldPosts = [...(Array.isArray(config.fixed) ? config.fixed : []), ...(Array.isArray(config.support) ? config.support : [])];
+        oldPosts.forEach(post => {
+            if (post.name.startsWith('DISPONIBLES / RELEVO')) return;
+            addPostRow('operationPostsBody', {
+                name: post.name,
+                schedule: post.schedule,
+                unitId: post.unitId,
+                funcion: post.funciones || post.funcion || []
+            });
+        });
+        loaded = true;
+    }
+
+    if (!loaded) {
+        addPostRow('operationPostsBody', { name: 'PUESTO DE GUARDIA 1', schedule: '08:00 - 08:00' });
+        addPostRow('operationPostsBody', { name: 'PUESTO DE GUARDIA 2', schedule: '08:00 - 08:00' });
+        addPostRow('operationPostsBody', { name: 'PATRULLAJE GT ECHO', schedule: 'TURNO 1' });
+    }
+
+    // Renderizar resultados si ya existen
+    if (config && typeof renderPostDistResults === 'function') {
+        renderPostDistResults(config);
+    }
 };
 
 window.generatePostAssignments = function () {
@@ -11292,7 +11613,7 @@ window.generatePostAssignments = function () {
         return;
     }
 
-    const config = { fixed: [], support: [] };
+    const config = { fixed: [], support: [], operation: [] };
     const assignedIds = new Set();
 
     const collect = (tbodyId, targetArray) => {
@@ -11310,11 +11631,15 @@ window.generatePostAssignments = function () {
         });
     };
 
-    collect('fixedPostsBody', config.fixed);
-    collect('supportPostsBody', config.support);
+    collect('operationPostsBody', config.operation);
 
-    const allConfigPosts = [...config.fixed, ...config.support];
-    const operative = personnel.filter(p => !isDesignatedOtherFunction(p.funcion) && (p.condition || 'OPERATIVO').toUpperCase() === 'OPERATIVO');
+    const allConfigPosts = [...config.fixed, ...config.support, ...config.operation];
+    const operative = personnel.filter(p => {
+        if (isDesignatedOtherFunction(p.funcion)) return false;
+        const cond = (p.condition || 'OPERATIVO').toUpperCase();
+        if (cond === 'BAJA' || cond === 'INACTIVO') return false;
+        return true;
+    });
 
     // Definir orden de rangos para distribución equitativa
     const ofOrder = ['CPNV', 'CPFG', 'CPCB', 'TNNV', 'TNFG', 'ALFG'];
@@ -11340,7 +11665,7 @@ window.generatePostAssignments = function () {
         let matchingPool = operative.filter(p => 
             window.resolveOrgUnitId(p.grupoDestino) === post.unitId &&
             !assignedIds.has(String(p.id)) &&
-            post.funciones.map(f => f.toUpperCase()).includes((p.funcion || '').toUpperCase())
+            post.funciones.map(f => f.toUpperCase().trim()).includes((p.funcion || '').toUpperCase().trim())
         );
 
         matchingPool = sortPersonnelByRank(matchingPool);
@@ -11363,8 +11688,7 @@ window.generatePostAssignments = function () {
         if (remainingInUnit.length > 0) {
             // Añadir como un puesto especial de disponibles para esa unidad
             const unitName = unit.name || unit.id;
-            const targetList = (unit.id.toUpperCase().includes('CODESC') ? config.fixed : config.support);
-            targetList.push({
+            config.operation.push({
                 name: `DISPONIBLES / RELEVO (${unitName})`,
                 schedule: 'PENDIENTE',
                 unitId: unit.id,
@@ -11381,6 +11705,9 @@ window.generatePostAssignments = function () {
         if (post.assigned.length > 0) post.assigned = sortPersonnelByRank(post.assigned);
     });
     config.support.forEach(post => {
+        if (post.assigned.length > 0) post.assigned = sortPersonnelByRank(post.assigned);
+    });
+    config.operation.forEach(post => {
         if (post.assigned.length > 0) post.assigned = sortPersonnelByRank(post.assigned);
     });
 
@@ -11448,7 +11775,12 @@ window.renderPostDistResults = function (config) {
     const wrapper = document.createElement('div');
     wrapper.style.cssText = "display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1.5rem;";
 
-    [...config.fixed, ...config.support].forEach(p => wrapper.appendChild(createCard(p)));
+    const allPosts = [
+        ...(Array.isArray(config.fixed) ? config.fixed : []),
+        ...(Array.isArray(config.support) ? config.support : []),
+        ...(Array.isArray(config.operation) ? config.operation : [])
+    ];
+    allPosts.forEach(p => wrapper.appendChild(createCard(p)));
     container.appendChild(wrapper);
 
     const totalOp = personnel.filter(p => !isDesignatedOtherFunction(p.funcion) && (p.condition || 'OPERATIVO').toUpperCase() === 'OPERATIVO').length;
@@ -11470,7 +11802,7 @@ window.exportPostAssignmentsPDF = function () {
         try { config = JSON.parse(config); } catch (e) { console.error(e); }
     }
 
-    if (!config || (!config.fixed && !config.support)) {
+    if (!config || (!config.fixed && !config.support && !config.operation)) {
         showNotification("No hay una distribución generada para exportar.", "warning");
         return;
     }
@@ -11494,7 +11826,7 @@ window.exportPostAssignmentsPDF = function () {
 
     let currentY = 38;
 
-    const allPosts = [...(config.fixed || []), ...(config.support || [])];
+    const allPosts = [...(config.fixed || []), ...(config.support || []), ...(config.operation || [])];
 
     allPosts.forEach((post, index) => {
         if (!post.assigned || post.assigned.length === 0) return;
@@ -11625,101 +11957,139 @@ window.saveTemplatePatrolOrder = function (type, contentId) {
 };
 
 window.resetTemplateForm = function (contentId) {
-    if (!confirm("Desea limpiar el formulario para una nueva orden? Se perderán los cambios locales no guardados.")) return;
-
-    const contentEl = document.getElementById(contentId);
-    const refInput = document.getElementById('ref_' + contentId);
-
-    // Generar nuevos valores automáticos
+    // Generar nuevos valores automáticos sin borrar el contenido
     const dtg = generateMilitaryDTG();
     const seq = getNextPatrolOrderSequence();
-    const newRef = `ARE-ORDPAT-UT100.51.4-${dtg}-${seq}-P`;
 
+    // Determinar de qué select leer según el id del contenedor
+    let unitSelect = null;
+    if (contentId === 'ordpatEchoContent') {
+        unitSelect = document.getElementById('ordpatTargetUnit_echo');
+    } else if (contentId === 'ordpat51Content') {
+        unitSelect = document.getElementById('ordpatTargetUnit_51');
+    }
+    
+    // Fallback general
+    if (!unitSelect) {
+        unitSelect = document.getElementById('ordpatTargetUnit');
+    }
+
+    const unitCode = unitSelect ? unitSelect.value : (contentId === 'ordpatEchoContent' ? 'GT_ECHO' : 'GT_100_51');
+    const units = window.orgUnits || [];
+    const unitObj = units.find(u => u.id === unitCode);
+    const refCode = unitObj ? unitObj.name.replace(/\s+/g, '') : unitCode.replace(/\s+/g, '.');
+
+    const newRef = `ARE-ORDPAT-${refCode}-${dtg}-${seq}-P`;
+
+    const refInput = document.getElementById('ref_' + contentId);
     if (refInput) refInput.value = newRef;
-
-    // Limpiar celdas editables y áreas de texto
-    contentEl.querySelectorAll('[contenteditable="true"]').forEach(el => {
-        el.textContent = '';
-    });
-
-    contentEl.querySelectorAll('textarea').forEach(ta => {
-        ta.value = '';
-        ta.textContent = '';
-    });
 
     // Actualizar el campo de texto dentro del papel (si existe)
     const displaySpan = document.getElementById('displayRef_' + contentId);
     if (displaySpan) displaySpan.textContent = newRef;
 
-    showNotification("Nueva Orden: " + newRef);
+    // Actualizar también la firma y el encabezado del anexo a
+    if (typeof updatePatrolOrderUnit === 'function') {
+        updatePatrolOrderUnit(unitCode);
+    }
+
+    showNotification("Nueva Orden Generada: " + newRef);
 };
 
 window.refreshTemplateRegistry = function () {
+    // Soporte para tabla unificada (nuevo) y tablas antiguas por retro-compatibilidad
+    const tbodyUnified = document.getElementById('templateOrdersTableBodyAll');
     const tbodyEcho = document.getElementById('templateOrdersTableBodyEcho');
     const tbody51 = document.getElementById('templateOrdersTableBody51');
+    const emptyMsgAll = document.getElementById('emptyRegistryMsgAll');
     const emptyMsgEcho = document.getElementById('emptyRegistryMsgEcho');
     const emptyMsg51 = document.getElementById('emptyRegistryMsg51');
 
+    if (tbodyUnified) tbodyUnified.innerHTML = '';
     if (tbodyEcho) tbodyEcho.innerHTML = '';
     if (tbody51) tbody51.innerHTML = '';
 
-    if (!templatePatrolOrders || templatePatrolOrders.length === 0) {
+    const allOrders = (templatePatrolOrders || []).sort((a, b) => b.timestamp - a.timestamp);
+
+    if (allOrders.length === 0) {
+        if (emptyMsgAll) emptyMsgAll.style.display = 'block';
         if (emptyMsgEcho) emptyMsgEcho.style.display = 'block';
         if (emptyMsg51) emptyMsg51.style.display = 'block';
         return;
     }
+    if (emptyMsgAll) emptyMsgAll.style.display = 'none';
 
-    const echoOrders = templatePatrolOrders.filter(o => o.type === 'ECHO').sort((a, b) => b.timestamp - a.timestamp);
-    const gt51Orders = templatePatrolOrders.filter(o => o.type === 'GT51').sort((a, b) => b.timestamp - a.timestamp);
-
+    const echoOrders = allOrders.filter(o => o.type === 'ECHO');
+    const gt51Orders = allOrders.filter(o => o.type === 'GT51');
     if (emptyMsgEcho) emptyMsgEcho.style.display = echoOrders.length === 0 ? 'block' : 'none';
     if (emptyMsg51) emptyMsg51.style.display = gt51Orders.length === 0 ? 'block' : 'none';
 
-    const renderRows = (orders, tbody) => {
+    const renderRow = (order, tbody) => {
         if (!tbody) return;
-        orders.forEach(order => {
-            const tr = document.createElement('tr');
+        const tr = document.createElement('tr');
+        const statusColor = order.status === 'cerrada' ? '#10b981' : '#f59e0b';
+        const fulfillmentStatus = order.fulfillmentSaved ? 'CARGADO' : 'PENDIENTE';
 
-            const statusColor = order.status === 'cerrada' ? '#10b981' : '#f59e0b';
-            const fulfillmentStatus = order.fulfillmentSaved ? 'CARGADO' : 'PENDIENTE';
+        // Obtener nombre legible del GT
+        const units = window.orgUnits || [];
+        const unitObj = units.find(u => u.id === order.gtId || u.id === order.type);
+        const gtName = unitObj ? unitObj.name : (order.type || 'N/A');
 
-            tr.innerHTML = `
-                <td>${order.date}</td>
-                <td style="font-weight:bold; color:var(--primary); font-family:monospace;">${order.reference}</td>
-                <td><span style="background:${statusColor}22; color:${statusColor}; padding:4px 8px; border-radius:6px; font-weight:800; font-size:0.7rem;">${order.status.toUpperCase()}</span></td>
-                <td style="font-size:0.75rem; font-weight:600;">${fulfillmentStatus}</td>
-                <td class="table-actions" style="display:flex; gap:8px; justify-content:center;">
-                    <button onclick="modifyTemplateOrder('${order.id}')" class="btn-action" title="Modificar Contenido" style="background:#f1f5f9;"></button>
-                    <button onclick="viewTemplateOrderPDF('${order.id}')" class="btn-action" title="Ver / Imprimir PDF" style="background:#eff6ff; color:#3b82f6;"></button>
-                    <button onclick="closeTemplateOrder('${order.id}')" class="btn-action" style="background:#fff7ed; color:#f97316;" title="Cerrar si hay cumplimiento">Cerrar</button>
-                    <button onclick="deleteTemplateOrder('${order.id}')" class="delete-btn" title="Eliminar Registro" style="padding:4px 8px;">🗑️</button>
-                </td>
-            `;
-            tbody.appendChild(tr);
-        });
+        tr.innerHTML = `
+            <td>${order.date}</td>
+            <td style="font-weight:700; color:#7c3aed; font-size:0.8rem;">${gtName}</td>
+            <td style="font-weight:bold; color:var(--primary); font-family:monospace; font-size:0.8rem;">${order.reference}</td>
+            <td><span style="background:${statusColor}22; color:${statusColor}; padding:4px 8px; border-radius:6px; font-weight:800; font-size:0.7rem;">${order.status.toUpperCase()}</span></td>
+            <td style="font-size:0.75rem; font-weight:600;">${fulfillmentStatus}</td>
+            <td class="table-actions" style="display:flex; gap:8px; justify-content:center;">
+                <button onclick="modifyTemplateOrder('${order.id}')" class="btn-action" title="Modificar Contenido" style="background:#f1f5f9;">✏️</button>
+                <button onclick="viewTemplateOrderPDF('${order.id}')" class="btn-action" title="Ver / Imprimir PDF" style="background:#eff6ff; color:#3b82f6;">🖨️</button>
+                <button onclick="closeTemplateOrder('${order.id}')" class="btn-action" style="background:#fff7ed; color:#f97316;" title="Cerrar">Cerrar</button>
+                <button onclick="deleteTemplateOrder('${order.id}')" class="delete-btn" title="Eliminar" style="padding:4px 8px;">🗑️</button>
+            </td>
+        `;
+        tbody.appendChild(tr);
     };
 
-    renderRows(echoOrders, tbodyEcho);
-    renderRows(gt51Orders, tbody51);
+    // Tabla unificada (nueva)
+    if (tbodyUnified) allOrders.forEach(o => renderRow(o, tbodyUnified));
+    // Tablas antiguas (retro-compatibilidad)
+    if (tbodyEcho) echoOrders.forEach(o => renderRow(o, tbodyEcho));
+    if (tbody51) gt51Orders.forEach(o => renderRow(o, tbody51));
 };
 
 window.modifyTemplateOrder = function (id) {
     const order = templatePatrolOrders.find(o => o.id === id);
     if (!order) return;
 
-    const viewId = order.type === 'ECHO' ? 'ordpatEchoView' : 'ordpat51View';
-    const contentId = order.type === 'ECHO' ? 'ordpatEchoContent' : 'ordpat51Content';
+    // Siempre usar la vista unificada
+    showAppView('ordpatUnifiedView');
 
-    showAppView(viewId);
+    // Seleccionar el GT correcto en el dropdown
+    const gtSel = document.getElementById('ordpatUnifiedGTSelector');
+    if (gtSel && order.gtId) {
+        gtSel.value = order.gtId;
+    } else if (gtSel && order.type) {
+        // Retrocompatibilidad: tipo ECHO / GT51
+        const units = window.orgUnits || [];
+        const matchUnit = units.find(u =>
+            u.name.toUpperCase().includes('ECHO') && order.type === 'ECHO' ||
+            u.name.includes('100.51') && order.type === 'GT51'
+        );
+        if (matchUnit) gtSel.value = matchUnit.id;
+    }
 
-    // Cargar contenido guardado
-    const contentEl = document.getElementById(contentId);
-    const refInput = document.getElementById('ref_' + contentId);
+    // Cargar el contenido guardado en el documento unificado
+    const contentEl = document.getElementById('ordpatUnifiedContent');
+    if (contentEl && order.htmlContent) contentEl.innerHTML = order.htmlContent;
 
-    if (contentEl) contentEl.innerHTML = order.htmlContent;
-    if (refInput) refInput.value = order.reference;
+    // Actualizar referencia visible
+    const displaySpan = document.getElementById('displayRef_ordpatUnifiedContent');
+    if (displaySpan) displaySpan.textContent = order.reference;
+    const annexRef = document.getElementById('annexRefUnified');
+    if (annexRef) annexRef.textContent = order.reference;
 
-    showNotification("Editando orden: " + order.reference);
+    showNotification('✏️ Editando orden: ' + order.reference);
 };
 
 window.viewTemplateOrderPDF = function (id) {
@@ -11828,111 +12198,8 @@ function getNextPatrolOrderSequence() {
 // ==========================================================================
 
 window.loadPersonalFromDistribucion = function (unit) {
-    const listId = unit === 'Echo' ? 'personalListEcho' : 'personalList51';
-    const selectId = unit === 'Echo' ? 'puestoPickerEcho' : 'puestoPicker51';
-    const listEl = document.getElementById(listId);
-    const selectEl = document.getElementById(selectId);
-    if (!listEl || !selectEl) return;
-
-    let config = lastDistributionConfig;
-    if (typeof config === 'string') { try { config = JSON.parse(config); } catch (e) { config = null; } }
-
-    if (!config || (!config.fixed && !config.support)) {
-        listEl.innerHTML = '<p style="text-align:center; color:#ef4444; font-size:0.75rem; padding:1rem;">⚠️ No hay una distribución de puestos generada. Genere la distribución primero.</p>';
-        return;
-    }
-
-    // Consolidar todos los puestos con personal asignado
-    const allPosts = [...(config.fixed || []), ...(config.support || [])];
-    const activePosts = allPosts.filter(p => p.assigned && p.assigned.length > 0);
-
-    // Guardar selección actual
-    const currentSelection = selectEl.value;
-
-    // Limpiar y re-poblar el select SOLO con puestos activados (SIN DUPLICADOS)
-    const firstOption = selectEl.options[0];
-    selectEl.innerHTML = '';
-    selectEl.appendChild(firstOption);
-
-    const seenNames = new Set();
-    activePosts.forEach(post => {
-        if (!seenNames.has(post.name)) {
-            const opt = document.createElement('option');
-            opt.value = post.name;
-            opt.textContent = post.name;
-            selectEl.appendChild(opt);
-            seenNames.add(post.name);
-        }
-    });
-
-    // Restaurar selección si sigue siendo válida
-    if (currentSelection && seenNames.has(currentSelection)) {
-        selectEl.value = currentSelection;
-    }
-
-    // Obtener el filtro actual
-    const selectedPost = selectEl.value;
-
-    // Filtrar los puestos a mostrar
-    const postsToShow = selectedPost
-        ? activePosts.filter(p => p.name === selectedPost)
-        : activePosts;
-
-    // Renderizar encabezado de puesto seleccionado
-    let html = '';
-    if (selectedPost) {
-        html += `<div style="background: #f1f5f9; padding: 10px; border-radius: 8px 8px 0 0; border: 1px solid #e2e8f0; border-bottom: none; display: flex; justify-content: space-between; align-items: center;">
-            <span style="font-weight: 800; font-size: 0.85rem; color: #1e3a8a; text-transform: uppercase;">íŸ“ PUESTO: ${selectedPost}</span>
-            <span id="recordCount_${listId}" style="font-size: 0.7rem; background: #3b82f6; color: white; padding: 2px 8px; border-radius: 10px; font-weight: 700;">--</span>
-        </div>`;
-    }
-
-    html += `<table style="width:100%; border-collapse:collapse; font-size:0.75rem; border: 1px solid #e2e8f0;">`;
-    html += `<thead><tr style="background:#f8fafc; border-bottom:2px solid #e2e8f0;">` +
-        `<th style="padding:6px 10px; text-align:left; width:30px;"><input type="checkbox" id="selectAll_${listId}" onchange="toggleAllPersonalCheckboxes('${listId}', this.checked)" title="Seleccionar todo"></th>` +
-        (selectedPost ? '' : '<th style="padding:6px 10px; text-align:left;">PUESTO</th>') +
-        '<th style="padding:6px 10px; text-align:left;">FUNCIÓN</th>' +
-        '<th style="padding:6px 10px; text-align:left;">GRAD/ESP</th>' +
-        '<th style="padding:6px 10px; text-align:left;">APELLIDOS Y NOMBRES</th>' +
-        '<th style="padding:6px 10px; text-align:left;">CÉDULA</th>' +
-        '</tr></thead><tbody>';
-
-    let count = 0;
-    postsToShow.forEach(post => {
-        post.assigned.forEach((p, idx) => {
-            count++;
-            const pid = `pick_${unit}_${post.name.replace(/\s+/g, '_')}_${p.id || idx}`;
-            const grade = p.grade || '---';
-            const spec = p.specialty || '';
-            const funcionValue = p.funcion || '---';
-            const fullGrade = spec ? `${grade} ${spec}` : grade;
-            html += `<tr style="border-bottom:1px solid #f1f5f9; cursor:pointer;" onclick="document.getElementById('${pid}').click()">
-                <td style="padding:5px 10px;"><input type="checkbox" id="${pid}"
-                    data-name="${(p.name || '').replace(/"/g, '&quot;')}"
-                    data-grade="${fullGrade.replace(/"/g, '&quot;')}"
-                    data-cedula="${p.idNum || ''}"
-                    data-funcion="${funcionValue.replace(/"/g, '&quot;')}"
-                    data-puesto="${post.name.replace(/"/g, '&quot;')}"></td>
-                ${selectedPost ? '' : `<td style="padding:5px 10px; color:#64748b; font-weight:600;">${post.name}</td>`}
-                <td style="padding:5px 10px; color:#7c3aed; font-weight:600;">${funcionValue}</td>
-                <td style="padding:5px 10px; font-weight:700; color:#1e40af;">${fullGrade}</td>
-                <td style="padding:5px 10px;">${p.name || '---'}</td>
-                <td style="padding:5px 10px; color:#64748b;">${p.idNum || '---'}</td>
-            </tr>`;
-        });
-    });
-
-    if (count === 0) {
-        html += `<tr><td colspan="6" style="padding:2rem; text-align:center; color:#94a3b8;">No hay personal asignado en la distribución para esta selección.</td></tr>`;
-    }
-
-    html += '</tbody></table>';
-    listEl.innerHTML = html;
-
-    // Actualizar contador
-    const counter = document.getElementById(`recordCount_${listId}`);
-    if (counter) counter.innerText = `${count} efectivo(s)`;
-};
+    window.loadPersonnelForPatrol(unit, 'DISTRIBUTION');
+};;
 
 window.toggleAllPersonalCheckboxes = function (listId, checked) {
     const listEl = document.getElementById(listId);
@@ -11941,8 +12208,8 @@ window.toggleAllPersonalCheckboxes = function (listId, checked) {
 };
 
 window.insertPersonalToAnexoA = function (unit) {
-    const listId = unit === 'Echo' ? 'personalListEcho' : 'personalList51';
-    const tbodyId = unit === 'Echo' ? 'anexoATbodyEcho' : 'anexoATbody51';
+    const listId = unit === 'Echo' ? 'personalListEcho' : (unit === '51' ? 'personalList51' : 'personalListUnified');
+    const tbodyId = unit === 'Echo' ? 'anexoATbodyEcho' : (unit === '51' ? 'anexoATbody51' : 'anexoATbodyUnified');
 
     const listEl = document.getElementById(listId);
     const tbody = document.getElementById(tbodyId);
@@ -11999,7 +12266,7 @@ window.insertPersonalToAnexoA = function (unit) {
 };
 
 window.filterAnexoTable = function (unit, query) {
-    const tbodyId = unit === 'Echo' ? 'anexoATbodyEcho' : 'anexoATbody51';
+    const tbodyId = unit === 'Echo' ? 'anexoATbodyEcho' : (unit === '51' ? 'anexoATbody51' : 'anexoATbodyUnified');
     const tbody = document.getElementById(tbodyId);
     if (!tbody) return;
 
@@ -12021,13 +12288,504 @@ window.filterAnexoTable = function (unit, query) {
     }
 };
 
+// ==========================================================================
+// ===== GESTIÓN DE FUENTES MÚLTIPLES PARA SELECCIÓN EN ANEXO "A" =====
+// ==========================================================================
+
+window.onPersonalSourceChange = function (unit, source) {
+    const puestoContainerId = `puestoContainer${unit}`;
+    const container = document.getElementById(puestoContainerId);
+    if (container) {
+        container.style.display = source === 'DISTRIBUTION' ? 'flex' : 'none';
+    }
+
+    if (source === 'DISTRIBUTION') {
+        window.populatePuestosDropdown(unit);
+    }
+
+    window.loadPersonnelForPatrol(unit, source);
+};
+
+window.triggerPersonalLoad = function (unit) {
+    const sourceEl = document.getElementById(`personalSource${unit}`);
+    const source = sourceEl ? sourceEl.value : 'DISTRIBUTION';
+    window.loadPersonnelForPatrol(unit, source);
+};
+
+window.populatePuestosDropdown = function (unit) {
+    const selectId = unit === 'Echo' ? 'puestoPickerEcho' : (unit === '51' ? 'puestoPicker51' : 'puestoPickerUnified');
+    const selectEl = document.getElementById(selectId);
+    if (!selectEl) return;
+
+    // Para Unified, usar el GT seleccionado en el selector de GT unificado
+    let selectedUnitId = '';
+    if (unit === 'Unified') {
+        const gtSel = document.getElementById('ordpatUnifiedGTSelector');
+        selectedUnitId = gtSel ? gtSel.value : '';
+    } else {
+        selectedUnitId = document.getElementById('ordpatTargetUnit') ? document.getElementById('ordpatTargetUnit').value : '';
+    }
+
+    let config = window.lastDistributionConfig;
+    if (typeof config === 'string') { try { config = JSON.parse(config); } catch (e) { config = null; } }
+
+    selectEl.innerHTML = '<option value="">-- Todos los Puestos --</option>';
+
+    if (config) {
+        const allPosts = [...(config.fixed || []), ...(config.support || []), ...(config.operation || [])];
+        const unitPosts = selectedUnitId ? allPosts.filter(p => p.unitId === selectedUnitId) : allPosts;
+        const activePosts = unitPosts.filter(p => p.assigned && p.assigned.length > 0);
+
+        const seenNames = new Set();
+        activePosts.forEach(post => {
+            if (!seenNames.has(post.name)) {
+                const opt = document.createElement('option');
+                opt.value = post.name;
+                opt.textContent = post.name;
+                selectEl.appendChild(opt);
+                seenNames.add(post.name);
+            }
+        });
+    }
+};
+
+window.loadPersonnelForPatrol = function (unit, source) {
+    const listId = unit === 'Echo' ? 'personalListEcho' : (unit === '51' ? 'personalList51' : 'personalListUnified');
+    const listEl = document.getElementById(listId);
+    if (!listEl) return;
+
+    let selectedUnitId = '';
+    const targetUnitEl = document.getElementById('ordpatTargetUnit');
+    if (targetUnitEl) {
+        selectedUnitId = targetUnitEl.value;
+    } else {
+        const pickerGtSel = document.getElementById('personalPickerGTSelector');
+        selectedUnitId = pickerGtSel ? pickerGtSel.value : '';
+        if (!selectedUnitId) {
+            const gtSel = document.getElementById('ordpatUnifiedGTSelector');
+            selectedUnitId = gtSel ? gtSel.value : '';
+        }
+    }
+
+    let list = [];
+    let title = '';
+    let isChofer = false;
+
+    if (source === 'DISTRIBUTION') {
+        title = 'Distribución por Puestos';
+        let config = window.lastDistributionConfig;
+        if (typeof config === 'string') { try { config = JSON.parse(config); } catch (e) { config = null; } }
+        if (config) {
+            const allPosts = [...(config.fixed || []), ...(config.support || []), ...(config.operation || [])];
+            const unitPosts = selectedUnitId ? allPosts.filter(p => p.unitId === selectedUnitId) : allPosts;
+
+            const selectId = unit === 'Echo' ? 'puestoPickerEcho' : (unit === '51' ? 'puestoPicker51' : 'puestoPickerUnified');
+            const selectEl = document.getElementById(selectId);
+            const selectedPost = (selectEl && selectEl.value) ? selectEl.value : '';
+
+            const postsToShow = selectedPost ? unitPosts.filter(p => p.name === selectedPost) : unitPosts;
+
+            postsToShow.forEach(post => {
+                if (post.assigned) {
+                    post.assigned.forEach(p => {
+                        list.push({
+                            id: p.id,
+                            grade: p.grade,
+                            specialty: p.specialty,
+                            name: p.name,
+                            idNum: p.idNum,
+                            funcion: p.funcion || 'OPERATIVO',
+                            puesto: post.name
+                        });
+                    });
+                }
+            });
+        }
+    } else if (source === 'DRIVERS') {
+        title = 'Registro de Choferes';
+        isChofer = true;
+        const sourceList = window.choferes || [];
+        list = selectedUnitId ? sourceList.filter(c => c.grupoDestino === selectedUnitId) : sourceList;
+        if (list.length === 0) list = sourceList;
+    } else if (source === 'VULNERABLE') {
+        title = 'Personal Vulnerable';
+        const sourceList = window.rdVulnerable || [];
+        list = selectedUnitId ? sourceList.filter(v => v.unit === selectedUnitId || v.guardia === selectedUnitId) : sourceList;
+        if (list.length === 0) list = sourceList;
+    } else if (source === 'DIFF_REGIME') {
+        title = 'Régimen Diferenciado / Suboficiales';
+        const sourceList = window.rdSuboficiales || [];
+        list = selectedUnitId ? sourceList.filter(s => s.grupoDestino === selectedUnitId) : sourceList;
+        if (list.length === 0) list = sourceList;
+    } else if (source === 'COMMAND_POST') {
+        title = 'Puesto de Mando';
+        const sourceList = window.commandPostPersonnel || [];
+        list = selectedUnitId ? sourceList.filter(p => p.grupoDestino === selectedUnitId) : sourceList;
+        if (list.length === 0) list = sourceList;
+    } else if (source === 'DAILY_REGISTRY') {
+        title = 'Registro Diario CODESC / Personal Gral';
+        const sourceList = window.personnel || [];
+        list = selectedUnitId ? sourceList.filter(p => p.grupoDestino === selectedUnitId) : sourceList;
+        if (list.length === 0) list = sourceList;
+    }
+
+    if (list.length === 0) {
+        listEl.innerHTML = `<p style="text-align:center; color:#ef4444; font-size:0.75rem; padding:2rem;">⚠️ No se encontraron registros en la fuente "${title}" para la unidad seleccionada.</p>`;
+        return;
+    }
+
+    let html = `<div style="background: #f1f5f9; padding: 10px; border-radius: 8px 8px 0 0; border: 1px solid #e2e8f0; border-bottom: none; display: flex; justify-content: space-between; align-items: center;">
+        <span style="font-weight: 800; font-size: 0.85rem; color: #1e3a8a; text-transform: uppercase;">📂 FUENTE: ${title}</span>
+        <span id="recordCount_${listId}" style="font-size: 0.7rem; background: #3b82f6; color: white; padding: 2px 8px; border-radius: 10px; font-weight: 700;">${list.length} efectivo(s)</span>
+    </div>`;
+
+    html += `<table style="width:100%; border-collapse:collapse; font-size:0.75rem; border: 1px solid #e2e8f0;">`;
+    html += `<thead><tr style="background:#f8fafc; border-bottom:2px solid #e2e8f0;">` +
+        `<th style="padding:6px 10px; text-align:left; width:30px;"><input type="checkbox" id="selectAll_${listId}" onchange="toggleAllPersonalCheckboxes('${listId}', this.checked)" title="Seleccionar todo"></th>` +
+        '<th style="padding:6px 10px; text-align:left;">PUESTO/FUNCIÓN</th>' +
+        '<th style="padding:6px 10px; text-align:left;">GRAD/ESP</th>' +
+        '<th style="padding:6px 10px; text-align:left;">APELLIDOS Y NOMBRES</th>' +
+        '<th style="padding:6px 10px; text-align:left;">CÉDULA</th>' +
+        '</tr></thead><tbody>';
+
+    list.forEach((p, idx) => {
+        const pid = `pick_${unit}_${idx}_${p.id || idx}`;
+        const grade = p.grade || '---';
+        const spec = p.specialty || p.esp || '';
+        const fullGrade = spec ? `${grade} ${spec}` : grade;
+        const fnOrPost = p.puesto || p.funcion || p.duty || 'OPERATIVO';
+
+        html += `<tr style="border-bottom:1px solid #f1f5f9; cursor:pointer;" onclick="document.getElementById('${pid}').click()">
+            <td style="padding:5px 10px;" onclick="event.stopPropagation()"><input type="checkbox" id="${pid}"
+                data-name="${(p.name || '').replace(/"/g, '&quot;')}"
+                data-grade="${fullGrade.replace(/"/g, '&quot;')}"
+                data-cedula="${p.idNum || ''}"
+                data-funcion="${fnOrPost.replace(/"/g, '&quot;')}"
+                data-is-chofer="${isChofer || p.isChofer ? 'true' : 'false'}"
+                data-puesto="${(p.puesto || fnOrPost).replace(/"/g, '&quot;')}"></td>
+            <td style="padding:5px 10px; color:#7c3aed; font-weight:600;">${fnOrPost}</td>
+            <td style="padding:5px 10px; font-weight:700; color:#1e40af;">${fullGrade}</td>
+            <td style="padding:5px 10px;">${p.name || '---'}</td>
+            <td style="padding:5px 10px; color:#64748b;">${p.idNum || '---'}</td>
+        </tr>`;
+    });
+
+    html += '</tbody></table>';
+    listEl.innerHTML = html;
+};
+
+// Escucha del selector principal de Unidad de Tarea
+window.addEventListener('orgUnitsLoaded', () => {
+    window.populatePuestosDropdown('Echo');
+    window.populatePuestosDropdown('51');
+    window.populatePuestosDropdown('Unified');
+    populateOrdpatUnifiedGTSelector();
+    if (typeof window.updateAllPostUnitDropdowns === 'function') {
+        window.updateAllPostUnitDropdowns();
+    }
+});
+
 // Registrar listeners para que el cambio en el select cargue e inserte automáticamente
 try {
     const eSelect = document.getElementById('puestoPickerEcho');
     if (eSelect) eSelect.addEventListener('change', () => loadPersonalFromDistribucion('Echo'));
     const p51 = document.getElementById('puestoPicker51');
     if (p51) p51.addEventListener('change', () => loadPersonalFromDistribucion('51'));
+    const pUnified = document.getElementById('puestoPickerUnified');
+    if (pUnified) pUnified.addEventListener('change', () => loadPersonalFromDistribucion('Unified'));
 } catch (e) { console.error('Error registrando listeners ANEXO A', e); }
+
+// =============================================================================
+// ===== VISTA UNIFICADA DE ÓRDENES DE PATRULLA ================================
+// =============================================================================
+
+/**
+ * Llena el selector de GT en la vista unificada con las unidades ACTIVAS.
+ */
+window.populateOrdpatUnifiedGTSelector = function () {
+    const sel = document.getElementById('ordpatUnifiedGTSelector');
+    if (!sel) return;
+    const units = (window.orgUnits || []).filter(u => u.status === 'ACTIVE');
+    const current = sel.value;
+    sel.innerHTML = '<option value="">-- Seleccionar GT --</option>';
+    units.forEach(u => {
+        const opt = document.createElement('option');
+        opt.value = u.id;
+        opt.textContent = u.name;
+        sel.appendChild(opt);
+    });
+    // Restaurar valor si sigue existiendo
+    if (current && units.some(u => u.id === current)) sel.value = current;
+
+    // También poblar el selector del panel de personal
+    window.populatePersonalPickerGTSelector();
+};
+
+/**
+ * Llena el dropdown 1 del panel de personal con los GTs activos.
+ */
+window.populatePersonalPickerGTSelector = function () {
+    const sel = document.getElementById('personalPickerGTSelector');
+    if (!sel) return;
+    const units = (window.orgUnits || []).filter(u => u.status === 'ACTIVE');
+    const current = sel.value;
+    sel.innerHTML = '<option value="">-- Seleccionar GT --</option>';
+    units.forEach(u => {
+        const opt = document.createElement('option');
+        opt.value = u.id;
+        opt.textContent = u.name;
+        sel.appendChild(opt);
+    });
+    if (current && units.some(u => u.id === current)) {
+        sel.value = current;
+        window.updatePersonalPickerFunctionDropdown(current);
+    }
+};
+
+/**
+ * Llena el dropdown 2 con las funciones del personal.
+ * Si el GT seleccionado incluye "100.51" en su nombre/id, también agrega FOXTROT y GOLF.
+ */
+window.updatePersonalPickerFunctionDropdown = function (gtId) {
+    const sel = document.getElementById('personalPickerFunctionSelector');
+    if (!sel) return;
+
+    // Determinar si es el GT 100.51 (por nombre o id)
+    const units = window.orgUnits || [];
+    const unitObj = units.find(u => u.id === gtId);
+    const unitName = unitObj ? (unitObj.name || '').toUpperCase() : '';
+    const isGT51 = unitName.includes('100.51') || (gtId || '').includes('51');
+
+    // Obtener funciones únicas del personal
+    const functionsList = typeof window.getUniquePersonnelFunctions === 'function'
+        ? window.getUniquePersonnelFunctions()
+        : ['GUARDIA', 'FRAPAL', 'COMISIÓN', 'FRANCO', 'ENFERMO', 'PERMISO'];
+
+    sel.innerHTML = '<option value="">-- Todas las Funciones --</option>';
+
+    // Grupo FUNCIONES
+    const grpFunctions = document.createElement('optgroup');
+    grpFunctions.label = '──── FUNCIONES ────';
+    functionsList.forEach(fn => {
+        const opt = document.createElement('option');
+        opt.value = fn;
+        opt.textContent = fn;
+        grpFunctions.appendChild(opt);
+    });
+    sel.appendChild(grpFunctions);
+
+    // Grupos FOXTROT / GOLF sólo si es GT 100.51
+    if (isGT51) {
+        const grpGrupos = document.createElement('optgroup');
+        grpGrupos.label = '──── GRUPOS ────';
+        ['FOXTROT', 'GOLF'].forEach(g => {
+            const opt = document.createElement('option');
+            opt.value = '__GRUPO__' + g;
+            opt.textContent = (g === 'FOXTROT' ? '🦊 ' : '⛳ ') + 'GRUPO ' + g;
+            grpGrupos.appendChild(opt);
+        });
+        sel.appendChild(grpGrupos);
+    }
+
+    if (!gtId) {
+        sel.innerHTML = '<option value="">-- Seleccionar primero un GT --</option>';
+    }
+};
+
+/**
+ * Carga el personal filtrado según el GT y Función/Grupo seleccionados en el picker.
+ * Si el valor del segundo dropdown empieza por '__GRUPO__', filtra por grupo CODESC.
+ */
+window.loadPersonalForAnexoByFilter = function () {
+    const gtSel = document.getElementById('personalPickerGTSelector');
+    const fnSel = document.getElementById('personalPickerFunctionSelector');
+    const listEl = document.getElementById('personalListUnified');
+
+    const gtId = gtSel ? gtSel.value : '';
+    const fnVal = fnSel ? fnSel.value : '';
+    const isGroupFilter = fnVal.startsWith('__GRUPO__');
+    const groupName = isGroupFilter ? fnVal.replace('__GRUPO__', '') : '';
+    const funcion = isGroupFilter ? '' : fnVal;
+
+    if (!gtId) {
+        if (listEl) listEl.innerHTML = '<p style="text-align:center; color:#ef4444; font-size:0.75rem; padding:1rem;">⚠️ Seleccione primero un Grupo de Tarea.</p>';
+        return;
+    }
+
+    // Si es filtro por grupo (FOXTROT/GOLF), buscar en el registro diario CODESC
+    if (isGroupFilter) {
+        // Buscar la última entrada del registro diario CODESC para este GT
+        const registry = window.codescDailyRegistry || [];
+        const lastRecord = registry
+            .filter(r => r.unitId === gtId || r.unitId === 'GLOBAL')
+            .sort((a, b) => new Date(b.submittedAt) - new Date(a.submittedAt))[0];
+
+        let filteredList = [];
+        if (lastRecord && lastRecord.personnelList) {
+            filteredList = lastRecord.personnelList.filter(p =>
+                (p.grupo || '').toUpperCase() === groupName
+            );
+        }
+
+        if (!listEl) return;
+        if (filteredList.length === 0) {
+            listEl.innerHTML = `<p style="text-align:center; color:#f59e0b; font-size:0.75rem; padding:1rem;">No se encontró personal del GRUPO ${groupName} en el último registro diario CODESC.</p>`;
+            return;
+        }
+
+        // Renderizar lista seleccionable
+        const officialGrades = ['ALFG', 'TNFG', 'TNNV', 'CPCB', 'CPFG', 'CPNV', 'CPTN', 'CALM', 'VALM', 'ALMR'];
+        let html = `<div style="background:#f1f5f9; padding:8px 12px; border-radius:6px 6px 0 0; border-bottom:1px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center;"><span style="font-weight:800; font-size:0.82rem; color:#1e3a8a;">📂 GRUPO ${groupName}</span><span style="font-size:0.7rem; background:#3b82f6; color:white; padding:2px 8px; border-radius:10px; font-weight:700;">${filteredList.length} efectivo(s)</span></div>`;
+        html += `<table style="width:100%; border-collapse:collapse; font-size:0.75rem; border:1px solid #e2e8f0;">`;
+        html += `<thead><tr style="background:#f8fafc; border-bottom:2px solid #e2e8f0;"><th style="padding:6px 10px; text-align:left; width:30px;"><input type="checkbox" id="selectAll_personalListUnified" onchange="toggleAllPersonalCheckboxes('personalListUnified', this.checked)" title="Seleccionar todo"></th><th style="padding:6px 10px; text-align:left;">FUNCIÓN</th><th style="padding:6px 10px; text-align:left;">GRAD/ESP</th><th style="padding:6px 10px; text-align:left;">APELLIDOS Y NOMBRES</th><th style="padding:6px 10px; text-align:left;">CÉDULA</th></tr></thead><tbody>`;
+
+        filteredList.forEach((p, idx) => {
+            const pid = `pick_Unified_${idx}_${p.cedula || idx}`;
+            const grade = p.grade || '---';
+            const spec = p.specialty || '';
+            const fullGrade = spec ? `${grade} ${spec}` : grade;
+            const fn = p.funcion || p.grupo || 'OPERATIVO';
+            const isChofer = (p.funcion || '').toUpperCase() === 'CHOFER';
+
+            html += `<tr style="border-bottom:1px solid #f1f5f9; cursor:pointer;" onclick="document.getElementById('${pid}').click()">
+                <td style="padding:5px 10px;" onclick="event.stopPropagation()"><input type="checkbox" id="${pid}" data-name="${(p.name || '').replace(/"/g, '&quot;')}" data-grade="${fullGrade.replace(/"/g, '&quot;')}" data-cedula="${p.cedula || ''}" data-funcion="${fn.replace(/"/g, '&quot;')}" data-is-chofer="${isChofer}" data-puesto="${groupName}"></td>
+                <td style="padding:5px 10px; color:#7c3aed; font-weight:600;">${fn}</td>
+                <td style="padding:5px 10px; font-weight:700; color:#1e40af;">${fullGrade}</td>
+                <td style="padding:5px 10px;">${p.name || '---'}</td>
+                <td style="padding:5px 10px; color:#64748b;">${p.cedula || p.idNum || '---'}</td>
+            </tr>`;
+        });
+
+        html += '</tbody></table>';
+        listEl.innerHTML = html;
+        return;
+    }
+
+    // Para funciones normales: cargar desde distribución/personal
+    // Actualizar el selector de GT del pickers existente antes de llamar a loadPersonnelForPatrol
+    window.loadPersonnelForPatrol('Unified', 'DISTRIBUTION');
+};
+
+/**
+ * Carga la última orden guardada para el GT seleccionado y la muestra en el documento unificado.
+ * Si no hay ninguna orden guardada, limpia el formulario con la referencia nueva.
+ */
+window.loadLastPatrolOrderForGT = function (gtId) {
+    if (!gtId) return;
+
+    const contentEl = document.getElementById('ordpatUnifiedContent');
+    if (!contentEl) return;
+
+    // Encontrar la última orden guardada para este GT (ordenar por timestamp desc)
+    const orders = (templatePatrolOrders || [])
+        .filter(o => o.gtId === gtId || o.type === gtId)
+        .sort((a, b) => b.timestamp - a.timestamp);
+
+    if (orders.length > 0) {
+        const last = orders[0];
+        contentEl.innerHTML = last.htmlContent;
+        showNotification('📋 Última orden cargada: ' + last.reference, 'info');
+    } else {
+        // Sin orden previa — generar nueva referencia
+        const units = window.orgUnits || [];
+        const unitObj = units.find(u => u.id === gtId);
+        const refCode = unitObj ? unitObj.name.replace(/\s+/g, '') : gtId;
+        const dtg = generateMilitaryDTG();
+        const seq = getNextPatrolOrderSequence();
+        const newRef = `ARE-ORDPAT-${refCode}-${dtg}-${seq}-P`;
+
+        const displaySpan = document.getElementById('displayRef_ordpatUnifiedContent');
+        if (displaySpan) displaySpan.textContent = newRef;
+        const annexRef = document.getElementById('annexRefUnified');
+        if (annexRef) annexRef.textContent = newRef;
+
+        // Actualizar firma
+        const sigTitle = document.getElementById('unifiedSignatureTitle');
+        if (sigTitle) sigTitle.textContent = 'COMANDANTE DEL ' + (unitObj ? unitObj.name.toUpperCase() : gtId);
+
+        showNotification('📝 Nuevo formato listo para: ' + (unitObj ? unitObj.name : gtId), 'info');
+    }
+
+    // Actualizar dropdown de puestos de personal según GT seleccionado
+    window.populatePuestosDropdown('Unified');
+};
+
+/**
+ * Guarda la orden del formulario unificado. El tipo se establece como el ID del GT seleccionado.
+ */
+window.saveUnifiedPatrolOrder = function () {
+    const gtSel = document.getElementById('ordpatUnifiedGTSelector');
+    const gtId = gtSel ? gtSel.value : '';
+    if (!gtId) {
+        alert('Por favor seleccione un Grupo de Tarea antes de guardar.');
+        if (gtSel) gtSel.focus();
+        return;
+    }
+
+    const contentEl = document.getElementById('ordpatUnifiedContent');
+    const displaySpan = document.getElementById('displayRef_ordpatUnifiedContent');
+    const orderRef = displaySpan ? displaySpan.textContent.trim() : '';
+
+    if (!orderRef || orderRef.includes('[GT]')) {
+        alert('Por favor ingrese una REFERENCIA válida para la orden antes de guardar.');
+        if (displaySpan) displaySpan.focus();
+        return;
+    }
+
+    const orderData = {
+        id: 'tmpl_' + Date.now(),
+        reference: orderRef,
+        type: gtId,  // Ahora el tipo = ID del GT
+        gtId: gtId,
+        date: new Date().toLocaleDateString(),
+        timestamp: Date.now(),
+        status: 'abierta',
+        fulfillmentSaved: false,
+        htmlContent: contentEl ? contentEl.innerHTML : ''
+    };
+
+    // Verificar si ya existe una con la misma referencia
+    const existingIndex = templatePatrolOrders.findIndex(o => o.reference === orderRef);
+    if (existingIndex !== -1) {
+        if (!confirm('Ya existe una orden con esta referencia. ¿Desea actualizarla?')) return;
+        orderData.status = templatePatrolOrders[existingIndex].status;
+        orderData.fulfillmentSaved = templatePatrolOrders[existingIndex].fulfillmentSaved;
+        templatePatrolOrders[existingIndex] = orderData;
+    } else {
+        templatePatrolOrders.push(orderData);
+    }
+
+    saveAppState('templatePatrolOrders', templatePatrolOrders);
+    const units = window.orgUnits || [];
+    const unitObj = units.find(u => u.id === gtId);
+    showNotification('✅ Orden guardada: ' + orderRef + (unitObj ? ' (' + unitObj.name + ')' : ''), 'success');
+    refreshTemplateRegistry();
+};
+
+/**
+ * Limpia el formulario unificado y genera una nueva referencia para el GT seleccionado.
+ */
+window.resetUnifiedPatrolForm = function () {
+    const gtSel = document.getElementById('ordpatUnifiedGTSelector');
+    const gtId = gtSel ? gtSel.value : '';
+    const units = window.orgUnits || [];
+    const unitObj = units.find(u => u.id === gtId);
+    const refCode = unitObj ? unitObj.name.replace(/\s+/g, '') : (gtId || 'GT');
+    const dtg = generateMilitaryDTG();
+    const seq = getNextPatrolOrderSequence();
+    const newRef = `ARE-ORDPAT-${refCode}-${dtg}-${seq}-P`;
+
+    const displaySpan = document.getElementById('displayRef_ordpatUnifiedContent');
+    if (displaySpan) displaySpan.textContent = newRef;
+    const annexRef = document.getElementById('annexRefUnified');
+    if (annexRef) annexRef.textContent = newRef;
+
+    // Limpiar tabla del Anexo A
+    const tbody = document.getElementById('anexoATbodyUnified');
+    if (tbody) tbody.innerHTML = '';
+
+    showNotification('📝 Nueva Orden Generada: ' + newRef, 'success');
+};
 
 // ==========================================================================
 // ===== MÓDULO DE CHOFERES (2x2 BABOR / ESTRIBOR) =========================
@@ -12291,7 +13049,7 @@ window.loadChoferesForPatrol = function (unit) {
     // El panel selector de choferes usa el mismo listEl / checkbox container
     // que el de personal normal. Filtramos por guardia según unidad:
     // Se muestran los choferes OPERATIVOS para que el usuario elija.
-    const listId = unit === 'Echo' ? 'personalListEcho' : 'personalList51';
+    const listId = unit === 'Echo' ? 'personalListEcho' : (unit === '51' ? 'personalList51' : 'personalListUnified');
     const listEl = document.getElementById(listId);
     if (!listEl) return;
 
@@ -12336,8 +13094,8 @@ window.loadChoferesForPatrol = function (unit) {
 // Parchear insertPersonalToAnexoA para que los choferes aparezcan en negrita-cursiva
 const _origInsert = window.insertPersonalToAnexoA;
 window.insertPersonalToAnexoA = function (unit) {
-    const listId = unit === 'Echo' ? 'personalListEcho' : 'personalList51';
-    const tbodyId = unit === 'Echo' ? 'anexoATbodyEcho' : 'anexoATbody51';
+    const listId = unit === 'Echo' ? 'personalListEcho' : (unit === '51' ? 'personalList51' : 'personalListUnified');
+    const tbodyId = unit === 'Echo' ? 'anexoATbodyEcho' : (unit === '51' ? 'anexoATbody51' : 'anexoATbodyUnified');
     const listEl = document.getElementById(listId);
     const tbody = document.getElementById(tbodyId);
     if (!listEl || !tbody) return;
@@ -12348,20 +13106,41 @@ window.insertPersonalToAnexoA = function (unit) {
         return;
     }
 
-    // Limpiar tabla completamente antes de insertar
-    tbody.innerHTML = '';
+    // Para la vista unificada (Unified), NO limpiamos la tabla para poder ir agregando (primero general, luego choferes/vulnerables/suboficiales)
+    if (unit !== 'Unified') {
+        tbody.innerHTML = '';
+    }
 
-    let nextOrd = 1;
+    let nextOrd = tbody.rows.length + 1;
 
     const ofGrades = ['ALFG', 'TNFG', 'TNNV', 'CPCB', 'CPFG', 'CPNV'];
     const getWeapon = (g) => { const x = (g || '').toUpperCase().split(' ')[0]; return ofGrades.includes(x) ? 'PISTOLA 9MM' : 'FUSIL HK'; };
     const getMun = (g) => { const x = (g || '').toUpperCase().split(' ')[0]; return ofGrades.includes(x) ? '15' : '30'; };
+
+    let insertedCount = 0;
 
     checked.forEach(cb => {
         const name = cb.dataset.name || '';
         const grade = cb.dataset.grade || '';
         const cedula = cb.dataset.cedula || '';
         if (!name && !grade && !cedula) return;
+
+        // Comprobar duplicados por Cédula o por Nombre
+        let duplicate = false;
+        const existingRows = tbody.querySelectorAll('tr');
+        for (let row of existingRows) {
+            const cells = row.querySelectorAll('td');
+            if (cells.length >= 6) {
+                const cellName = cells[2].textContent.trim().toUpperCase();
+                const cellCed = cells[5].textContent.trim();
+                if ((cedula && cellCed === cedula) || (name && cellName === name.toUpperCase())) {
+                    duplicate = true;
+                    break;
+                }
+            }
+        }
+        if (duplicate) return;
+
         const isChofer = cb.dataset.isChofer === 'true';
         const weapon = isChofer ? 'CHOFER' : getWeapon(grade);
         const municion = isChofer ? '-' : getMun(grade);
@@ -12383,10 +13162,107 @@ window.insertPersonalToAnexoA = function (unit) {
         `;
         tbody.appendChild(tr);
         nextOrd++;
+        insertedCount++;
     });
 
-    showNotification(`íœ… ${checked.length} efectivo(s) insertados en el ANEXO "A".`, 'success');
+    if (insertedCount > 0) {
+        showNotification(`✓ ${insertedCount} efectivo(s) insertados en el ANEXO "A".`, 'success');
+    } else {
+        showNotification(`⚠️ No se agregaron nuevos efectivos (ya existían en la tabla).`, 'warning');
+    }
     listEl.querySelectorAll('input[type=checkbox]').forEach(cb => cb.checked = false);
+};
+
+/**
+ * Carga el personal Vulnerable en una tabla con checkboxes para la vista unificada.
+ */
+window.loadVulnerablesForPatrolUnified = function () {
+    const listEl = document.getElementById('personalListUnified');
+    if (!listEl) return;
+
+    const listVulnerable = window.rdVulnerable || JSON.parse(localStorage.getItem('gyevulnerable') || '[]');
+
+    if (listVulnerable.length === 0) {
+        listEl.innerHTML = '<p style="text-align:center; color:#ef4444; font-size:0.75rem; padding:1rem;">⚠️ No hay personal registrado como VULNERABLE.</p>';
+        return;
+    }
+
+    let html = '<table style="width:100%; border-collapse:collapse; font-size:0.75rem;">';
+    html += '<thead><tr style="background:#fee2e2; border-bottom:2px solid #fca5a5;">' +
+        '<th style="padding:6px 10px; text-align:left; width:30px;"><input type="checkbox" id="selectAll_personalListUnified" onchange="toggleAllPersonalCheckboxes(\'personalListUnified\', this.checked)" title="Seleccionar todo"></th>' +
+        '<th style="padding:6px 10px; text-align:left;">DIVISIÓN</th>' +
+        '<th style="padding:6px 10px; text-align:left;">GRAD/ESP</th>' +
+        '<th style="padding:6px 10px; text-align:left;">APELLIDOS Y NOMBRES</th>' +
+        '<th style="padding:6px 10px; text-align:left;">CÉDULA</th>' +
+        '</tr></thead><tbody>';
+
+    listVulnerable.forEach((v, idx) => {
+        const pid = `rdPick_vuln_${v.id || idx}`;
+        const fullGrade = v.esp ? `${v.grade} ${v.esp}` : v.grade;
+        const gColor = v.guardia === 'BABOR' ? '#1d4ed8' : '#065f46';
+        const gBadge = `<span style="background:${gColor}; color:white; border-radius:4px; padding:1px 6px; font-size:0.65rem; font-weight:700;">${v.guardia || 'S/D'}</span>`;
+        html += `<tr style="border-bottom:1px solid #f1f5f9; cursor:pointer; background:rgba(239,68,68,0.02);" onclick="document.getElementById('${pid}').click()">
+            <td style="padding:5px 10px;" onclick="event.stopPropagation()"><input type="checkbox" id="${pid}"
+                data-name="${(v.name || '').replace(/"/g, '&quot;')}"
+                data-grade="${fullGrade.replace(/"/g, '&quot;')}"
+                data-cedula="${v.idNum || ''}"
+                data-is-chofer="false"
+                data-puesto="VULNERABLE"></td>
+            <td style="padding:5px 10px;">${gBadge}</td>
+            <td style="padding:5px 10px; font-weight:700; color:#ef4444;">${fullGrade}</td>
+            <td style="padding:5px 10px; font-weight:700;">${v.name || '---'}</td>
+            <td style="padding:5px 10px; color:#64748b;">${v.idNum || '---'}</td>
+        </tr>`;
+    });
+
+    html += '</tbody></table>';
+    listEl.innerHTML = html;
+};
+
+/**
+ * Carga el personal Suboficial en una tabla con checkboxes para la vista unificada.
+ */
+window.loadSuboficialesForPatrolUnified = function () {
+    const listEl = document.getElementById('personalListUnified');
+    if (!listEl) return;
+
+    const listSuboficiales = window.rdSuboficiales || JSON.parse(localStorage.getItem('gyesuboficiales') || '[]');
+
+    if (listSuboficiales.length === 0) {
+        listEl.innerHTML = '<p style="text-align:center; color:#f59e0b; font-size:0.75rem; padding:1rem;">⚠️ No hay personal registrado como SUBOFICIALES.</p>';
+        return;
+    }
+
+    let html = '<table style="width:100%; border-collapse:collapse; font-size:0.75rem;">';
+    html += '<thead><tr style="background:#ffedd5; border-bottom:2px solid #fdba74;">' +
+        '<th style="padding:6px 10px; text-align:left; width:30px;"><input type="checkbox" id="selectAll_personalListUnified" onchange="toggleAllPersonalCheckboxes(\'personalListUnified\', this.checked)" title="Seleccionar todo"></th>' +
+        '<th style="padding:6px 10px; text-align:left;">DIVISIÓN</th>' +
+        '<th style="padding:6px 10px; text-align:left;">GRAD/ESP</th>' +
+        '<th style="padding:6px 10px; text-align:left;">APELLIDOS Y NOMBRES</th>' +
+        '<th style="padding:6px 10px; text-align:left;">CÉDULA</th>' +
+        '</tr></thead><tbody>';
+
+    listSuboficiales.forEach((s, idx) => {
+        const pid = `rdPick_sub_${s.id || idx}`;
+        const fullGrade = s.esp ? `${s.grade} ${s.esp}` : s.grade;
+        const gColor = s.guardia === 'BABOR' ? '#1d4ed8' : '#065f46';
+        const gBadge = `<span style="background:${gColor}; color:white; border-radius:4px; padding:1px 6px; font-size:0.65rem; font-weight:700;">${s.guardia || 'S/D'}</span>`;
+        html += `<tr style="border-bottom:1px solid #f1f5f9; cursor:pointer; background:rgba(245,158,11,0.02);" onclick="document.getElementById('${pid}').click()">
+            <td style="padding:5px 10px;" onclick="event.stopPropagation()"><input type="checkbox" id="${pid}"
+                data-name="${(s.name || '').replace(/"/g, '&quot;')}"
+                data-grade="${fullGrade.replace(/"/g, '&quot;')}"
+                data-cedula="${s.idNum || ''}"
+                data-is-chofer="false"
+                data-puesto="SUBOFICIAL"></td>
+            <td style="padding:5px 10px;">${gBadge}</td>
+            <td style="padding:5px 10px; font-weight:700; color:#f59e0b;">${fullGrade}</td>
+            <td style="padding:5px 10px; font-weight:700;">${s.name || '---'}</td>
+            <td style="padding:5px 10px; color:#64748b;">${s.idNum || '---'}</td>
+        </tr>`;
+    });
+
+    html += '</tbody></table>';
+    listEl.innerHTML = html;
 };
 
 // --- KMZ LOADER LOGIC ---
@@ -12661,6 +13537,7 @@ window.handleSavePurgeKey = async function (event) {
         });
         if (res.ok) {
             window._purgeKey = key; // Caché local temporal
+            try { localStorage.setItem('omai_purgeMasterKey', key); } catch (e) { }
             if (msg) {
                 msg.textContent = "✅ Clave Maestra actualizada con éxito";
                 msg.style.color = "#16a34a";
@@ -12696,19 +13573,22 @@ window.toggleActivePurgeKeyVisibility = function (event) {
     if (!span) return;
     const btn = (event && event.currentTarget) ? event.currentTarget : null;
 
+    let savedKey = null;
+    try { savedKey = localStorage.getItem('omai_purgeMasterKey'); } catch (e) { }
+    const currentKey = window._purgeKey || savedKey || PURGE_MASTER_KEY;
+
     // If currently masked (contains asterisk) then show the real key
-    if (span.textContent.includes('*')) {
-        if (window._purgeKey) {
-            span.textContent = window._purgeKey;
-            span.style.letterSpacing = "normal";
-        } else {
-            span.textContent = "[Protegida en Servidor]";
-            span.style.letterSpacing = "normal";
-        }
+    if (span.textContent.includes('*') || span.textContent.includes('Protegida')) {
+        span.textContent = currentKey;
+        span.style.letterSpacing = "normal";
+        span.style.fontWeight = "bold";
+        span.style.color = "#dc2626";
         if (btn) btn.textContent = "Ocultar";
     } else {
         span.textContent = "********";
         span.style.letterSpacing = "3px";
+        span.style.fontWeight = "normal";
+        span.style.color = "inherit";
         if (btn) btn.textContent = "Ver👁️";
     }
 };
@@ -13354,23 +14234,23 @@ window.loadOrgUnits = async function () {
         if (res.ok) {
             window.orgUnits = await res.json();
             window.populateOrgUnitsDropdowns();
-            console.log("Unidades orgánicas cargadas con éxito:", window.orgUnits);
+            console.log("Unidades org\u00e1nicas cargadas con \u00e9xito:", window.orgUnits);
         } else {
-            console.error("Error al cargar unidades orgánicas del servidor.");
+            console.error("Error al cargar unidades org\u00e1nicas del servidor.");
         }
     } catch (e) {
         console.error("Error en loadOrgUnits:", e);
     }
 };
 
-// Calcula la profundidad de una unidad de forma recursiva (con prevención de ciclos)
+// Calcula la profundidad de una unidad de forma recursiva (con prevenci\u00f3n de ciclos)
 window.getUnitDepth = function (unitId, list) {
     let depth = 1;
     let visited = new Set([unitId]);
     let current = list.find(u => u.id === unitId);
     while (current && current.parent_id) {
         if (visited.has(current.parent_id)) {
-            console.error("Ciclo jerárquico detectado para unidad:", current.parent_id);
+            console.error("Ciclo jer\u00e1rquico detectado para unidad:", current.parent_id);
             break;
         }
         depth++;
@@ -13388,6 +14268,87 @@ window.populateOrgUnitsDropdowns = function () {
 
     // Filtrar solo las unidades activas
     const activeUnits = window.orgUnits.filter(u => u.status === 'ACTIVE');
+    
+    const ordpatSelect = document.getElementById('ordpatTargetUnit');
+    if (ordpatSelect) {
+        const val = ordpatSelect.value;
+        ordpatSelect.innerHTML = '';
+        activeUnits.forEach(u => {
+            const opt = document.createElement('option');
+            opt.value = u.id;
+            opt.textContent = `${u.name} (${u.id})`;
+            ordpatSelect.appendChild(opt);
+        });
+        if (val) ordpatSelect.value = val;
+    }
+
+    // Selector de GT en el editor de Orden de Patrulla ECHO
+    const ordpatSelectEcho = document.getElementById('ordpatTargetUnit_echo');
+    if (ordpatSelectEcho) {
+        const val = ordpatSelectEcho.value;
+        ordpatSelectEcho.innerHTML = '';
+        activeUnits.forEach(u => {
+            const opt = document.createElement('option');
+            opt.value = u.id;
+            opt.textContent = `${u.name}`;
+            ordpatSelectEcho.appendChild(opt);
+        });
+        if (val && activeUnits.some(u => u.id === val)) {
+            ordpatSelectEcho.value = val;
+        } else {
+            // Pre-seleccionar GT ECHO si existe
+            const hasEcho = activeUnits.find(u => u.id === 'GT_ECHO' || u.id.includes('ECHO'));
+            if (hasEcho) ordpatSelectEcho.value = hasEcho.id;
+        }
+    }
+
+    // Selector de GT en el editor de Orden de Patrulla 100.51
+    const ordpatSelect51 = document.getElementById('ordpatTargetUnit_51');
+    if (ordpatSelect51) {
+        const val = ordpatSelect51.value;
+        ordpatSelect51.innerHTML = '';
+        activeUnits.forEach(u => {
+            const opt = document.createElement('option');
+            opt.value = u.id;
+            opt.textContent = `${u.name}`;
+            ordpatSelect51.appendChild(opt);
+        });
+        if (val && activeUnits.some(u => u.id === val)) {
+            ordpatSelect51.value = val;
+        } else {
+            // Pre-seleccionar GT 100.51 si existe
+            const has51 = activeUnits.find(u => u.id === 'GT_100_51' || u.id.includes('100.51'));
+            if (has51) ordpatSelect51.value = has51.id;
+        }
+    }
+
+    // Selector de GT Ejecutor en el formulario ORDPAT (#opGTSelector)
+    const opGTSelect = document.getElementById('opGTSelector');
+    if (opGTSelect) {
+        const prevVal = opGTSelect.value;
+        const getGTEmoji = (u) => {
+            const id = (u.id || '').toUpperCase();
+            const name = (u.name || '').toUpperCase();
+            if (id.includes('FRAPAL') || name.includes('FRAPAL')) return '🚢';
+            if (id.includes('FRAMOR') || name.includes('FRAMOR')) return '🚢';
+            if (id.includes('100.51') || id.includes('GT_100') || name.includes('100.51')) return '⚓';
+            if (id.includes('CODESC') || name.includes('CODESC')) return '🏢';
+            if (id.includes('ECHO') || name.includes('ECHO')) return '🛡️';
+            if (id.includes('LOG') || name.includes('LOG')) return '🚛';
+            return '📌';
+        };
+        opGTSelect.innerHTML = '<option value="">-- Seleccionar GT Ejecutor --</option>';
+        activeUnits.forEach(u => {
+            const opt = document.createElement('option');
+            opt.value = u.id;
+            opt.textContent = `${getGTEmoji(u)} ${u.name}`;
+            opGTSelect.appendChild(opt);
+        });
+        // Restaurar valor previo si aún está activo
+        if (prevVal && activeUnits.some(u => u.id === prevVal)) {
+            opGTSelect.value = prevVal;
+        }
+    }
 
     // 1. Selector de Registro de Personal (#pGrupoDestino)
     if (pSelect) {
@@ -13415,43 +14376,115 @@ window.populateOrgUnitsDropdowns = function () {
         ).join('') || '<option value="">Sin unidades</option>';
         if (val) cpSelect.value = val;
     }
+
+    // 4. Filtro de GT en el Dashboard de Estadísticas (#statsGtFilter)
+    const gtFilterSelect = document.getElementById('statsGtFilter');
+    if (gtFilterSelect) {
+        const prevVal = gtFilterSelect.value;
+
+        // Determinar emoji por tipo de unidad
+        const getUnitEmoji = (unit) => {
+            const id = (unit.id || '').toUpperCase();
+            const name = (unit.name || '').toUpperCase();
+            if (id.includes('FRAPAL') || name.includes('FRAPAL')) return '🚢';
+            if (id.includes('FRAMOR') || name.includes('FRAMOR')) return '🚢';
+            if (id.includes('100.51') || id.includes('GT_100') || name.includes('100.51')) return '⚓';
+            if (id.includes('CODESC') || name.includes('CODESC')) return '🏢';
+            if (id.includes('ECHO') || name.includes('ECHO')) return '🛡️';
+            if (id.includes('LOG') || name.includes('LOG') || name.includes('ISTIC')) return '🚛';
+            return '📌';
+        };
+
+        // Reconstruir opciones: primero "Todos", luego solo ACTIVE
+        gtFilterSelect.innerHTML = '<option value="all">🌐 Todos los Grupos de Tarea</option>';
+        activeUnits.forEach(u => {
+            const emoji = getUnitEmoji(u);
+            const opt = document.createElement('option');
+            opt.value = u.id;
+            opt.textContent = `${emoji} ${u.name}`;
+            gtFilterSelect.appendChild(opt);
+        });
+
+        // Restaurar selección previa si la unidad sigue activa, si no → "all"
+        const stillActive = activeUnits.some(u => u.id === prevVal);
+        gtFilterSelect.value = (prevVal && stillActive) ? prevVal : 'all';
+    }
+
+    // Disparar evento para avisar que ya se cargaron las unidades
+    window.dispatchEvent(new Event('orgUnitsLoaded'));
 };
 
-// Renderiza la vista de administración de unidades (Lista plana)
+// Renderiza la vista de administración de unidades (árbol jerárquico)
 window.renderOrgUnitsAdmin = function () {
     const container = document.getElementById('orgTreeContainer');
     if (!container) return;
 
-    let html = '';
     const units = window.orgUnits;
 
-    if (units.length === 0) {
-        html = '<p style="text-align:center; font-size:0.8rem; color: var(--text-muted);">No hay unidades registradas.</p>';
-    } else {
-        // Ordenar alfabéticamente
-        const sortedUnits = [...units].sort((a, b) => a.name.localeCompare(b.name));
-        sortedUnits.forEach(node => {
-            html += `
-                <div style="margin-top: 6px; padding: 8px; background: ${node.status === 'ACTIVE' ? 'var(--bg-card)' : '#fee2e2'}; border: 1px solid var(--border); border-radius: 6px; display: flex; justify-content: space-between; align-items: center; border-left: 4px solid #3b82f6;">
+    if (!units || units.length === 0) {
+        container.innerHTML = '<p style="text-align:center; font-size:0.8rem; color: var(--text-muted);">No hay unidades registradas.</p>';
+        window.populateOrgUnitsDropdowns();
+        return;
+    }
+
+    // Build hierarchical tree
+    const roots = units.filter(u => !u.parent_id || u.parent_id === '');
+    const getChildren = (parentId) => units.filter(u => u.parent_id === parentId);
+
+    function renderNode(node, depth) {
+        const indent = depth * 20;
+        const borderColor = depth === 0 ? '#3b82f6' : depth === 1 ? '#06b6d4' : '#a855f7';
+        const bgColor = node.status === 'ACTIVE' ? 'var(--bg-card)' : '#fee2e2';
+        const nameSafe = node.name.replace(/'/g, "\\'");
+        let html = `
+            <div style="margin-top: 6px; margin-left: ${indent}px; padding: 8px 10px; background: ${bgColor}; border: 1px solid var(--border); border-radius: 6px; display: flex; justify-content: space-between; align-items: center; border-left: 4px solid ${borderColor};">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    ${depth > 0 ? `<span style="color: #94a3b8; font-size: 0.8rem;">└</span>` : ''}
                     <div>
-                        <strong>${node.name}</strong> <span style="font-size:0.65rem; color: var(--text-muted); background: #f1f5f9; padding: 2px 6px; border-radius: 4px; font-weight:700; margin-left: 6px;">${node.id}</span>
+                        <strong style="font-size: ${0.85 - depth * 0.03}rem;">${node.name}</strong>
+                        <span style="font-size:0.65rem; color: var(--text-muted); background: #f1f5f9; padding: 2px 6px; border-radius: 4px; font-weight:700; margin-left: 6px;">${node.id}</span>
                         <div style="font-size: 0.65rem; color: var(--text-muted); margin-top: 2px;">
                             ${node.status === 'ACTIVE' ? '🟢 Activo' : '🔴 Inactivo'}
                         </div>
                     </div>
-                    <div style="display: flex; gap: 4px;">
-                        <button onclick="editOrgUnit('${node.id}', '${node.name.replace(/'/g, "\\'")}', '', '', '${node.status}')" class="btn-secondary btn-small" style="padding: 2px 8px; font-size: 0.75rem;">✏️</button>
-                        <button onclick="deleteOrgUnit('${node.id}')" class="btn-remove-row btn-small" style="padding: 2px 8px; font-size: 0.75rem; color: #dc2626;">🗑️</button>
-                    </div>
                 </div>
-            `;
+                <div style="display: flex; gap: 4px; flex-shrink: 0;">
+                    <button onclick="addSubordinateOrgUnit('${node.id}', '${nameSafe}')" title="Añadir unidad subordinada" style="border: 1px solid #06b6d4; background: #ecfeff; color: #0891b2; border-radius: 5px; padding: 2px 7px; font-size: 0.7rem; font-weight: 700; cursor: pointer;">+ Sub</button>
+                    <button onclick="editOrgUnit('${node.id}', '${nameSafe}', '${node.parent_id || ''}', '', '${node.status}')" class="btn-secondary btn-small" style="padding: 2px 8px; font-size: 0.75rem;">✏️</button>
+                    <button onclick="deleteOrgUnit('${node.id}')" class="btn-remove-row btn-small" style="padding: 2px 8px; font-size: 0.75rem; color: #dc2626;">🗑️</button>
+                </div>
+            </div>
+        `;
+        getChildren(node.id).sort((a, b) => a.name.localeCompare(b.name)).forEach(child => {
+            html += renderNode(child, depth + 1);
         });
+        return html;
     }
 
-    container.innerHTML = html;
+    const sortedRoots = roots.sort((a, b) => a.name.localeCompare(b.name));
+    container.innerHTML = sortedRoots.map(r => renderNode(r, 0)).join('');
 
-    // Actualizar los dropdowns select
+    // Populate parent selector in form
+    const parentSelect = document.getElementById('orgUnitParentSelect');
+    if (parentSelect) {
+        const activeUnits = units.filter(u => u.status === 'ACTIVE').sort((a,b) => a.name.localeCompare(b.name));
+        const currentVal = parentSelect.value;
+        parentSelect.innerHTML = '<option value="">— Ninguna (Unidad Raíz) —</option>' +
+            activeUnits.map(u => `<option value="${u.id}">${u.name} (${u.id})</option>`).join('');
+        if (currentVal) parentSelect.value = currentVal;
+    }
+
     window.populateOrgUnitsDropdowns();
+};
+
+// Prepara el formulario para añadir una unidad subordinada a un padre dado
+window.addSubordinateOrgUnit = function (parentId, parentName) {
+    window.cancelOrgEdit();
+    document.getElementById('orgFormTitle').textContent = `Nueva Unidad Subordinada de: ${parentName}`;
+    const parentSelect = document.getElementById('orgUnitParentSelect');
+    if (parentSelect) parentSelect.value = parentId;
+    document.getElementById('orgUnitId').focus();
+    document.getElementById('adminOrgForm')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 };
 
 // Guardar / Actualizar Unidad
@@ -13461,6 +14494,8 @@ window.handleSaveOrgUnit = async function (e) {
     const id = document.getElementById('orgUnitId').value.trim().toUpperCase().replace(/[^A-Z0-9_]/g, '_');
     const name = document.getElementById('orgUnitName').value.trim();
     const status = document.getElementById('orgUnitStatus').value;
+    const parentSelect = document.getElementById('orgUnitParentSelect');
+    const parent_id = parentSelect ? (parentSelect.value.trim() || null) : null;
 
     if (!id || !name) return;
 
@@ -13468,7 +14503,7 @@ window.handleSaveOrgUnit = async function (e) {
         const res = await fetch('/api/org-units', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id, name, parent_id: null, category: 'UNIDAD', status })
+            body: JSON.stringify({ id, name, parent_id, category: 'UNIDAD', status })
         });
         if (res.ok) {
             showNotification(isEdit ? "Unidad actualizada con éxito" : "Unidad creada con éxito");
@@ -13497,7 +14532,11 @@ window.editOrgUnit = function (id, name, parent_id, category, status) {
     document.getElementById('orgUnitName').value = name;
     document.getElementById('orgUnitStatus').value = status;
 
+    const parentSelect = document.getElementById('orgUnitParentSelect');
+    if (parentSelect) parentSelect.value = parent_id || '';
+
     document.getElementById('orgCancelBtn').style.display = "inline-block";
+    document.getElementById('adminOrgForm')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 };
 
 // Cancela la edición y limpia el formulario
@@ -13508,6 +14547,9 @@ window.cancelOrgEdit = function () {
     const idField = document.getElementById('orgUnitId');
     idField.value = "";
     idField.disabled = false;
+
+    const parentSelect = document.getElementById('orgUnitParentSelect');
+    if (parentSelect) parentSelect.value = '';
 
     document.getElementById('adminOrgForm').reset();
     document.getElementById('orgCancelBtn').style.display = "none";
@@ -13656,32 +14698,546 @@ window.populateCodescDailyUnits = function () {
     const select = document.getElementById('codescDailyUnit');
     if (!select) return;
     
-    const activeUnits = (window.orgUnits || []).filter(u => 
-        u.status === 'ACTIVE' && 
-        (u.id.toUpperCase().includes('CODESC') || u.name.toUpperCase().includes('CODESC') || u.id.toUpperCase().includes('UT_100.61') || u.name.toUpperCase().includes('100.61'))
-    );
+    const activeUnits = (window.orgUnits || []).filter(u => u.status === 'ACTIVE').sort((a,b) => (a.name || a.id).localeCompare(b.name || b.id));
     
     select.innerHTML = '<option value="" disabled selected>-- Seleccionar Unidad --</option>' + 
         activeUnits.map(u => `<option value="${u.id}">${u.name || u.id}</option>`).join('');
 };
 
-window.addCodescDailyFormDistributionRow = function (concept = '', count = 0) {
-    const tbody = document.getElementById('codescDailyFormDistributionBody');
-    if (!tbody) return;
+window.getUniquePersonnelFunctions = function () {
+    const list = typeof personnel !== 'undefined' ? personnel : [];
+    const funcs = new Set(['GUARDIA', 'FRAPAL', 'COMISIÓN', 'FRANCO', 'ENFERMO', 'PERMISO']);
+    list.forEach(p => {
+        if (p.funcion) {
+            const f = p.funcion.toUpperCase().trim();
+            if (f && !isDesignatedOtherFunction(f)) {
+                funcs.add(f);
+            }
+        }
+    });
+    return Array.from(funcs).sort();
+};
+
+window.renderCodescRequiredPersonnel = function () {
+    const container = document.getElementById('codescRequiredPersonnelContainer');
+    if (!container) return;
+
+    const currentRole = sessionStorage.getItem('currentUserRole');
+    const canEdit = (currentRole === 'ADMINISTRADOR' || currentRole === 'PERSONAL OMAI' || currentRole === 'JEFE OMAI');
+
+    let config = codescReqPersonnelConfig || {};
+
+    const BUQUES_PARENT = 'SEGURIDAD_MAR_TIMA__HTMC_';
+    const activeBuqueUnits = (window.orgUnits || []).filter(u => 
+        u.status === 'ACTIVE' && (u.parent === BUQUES_PARENT || u.parent_id === BUQUES_PARENT || u.id.toUpperCase().includes('CODESC') || u.name.toUpperCase().includes('CODESC'))
+    ).sort((a, b) => (a.name || a.id).localeCompare(b.name || b.id));
+
+    let configuredUnits = Object.keys(config);
+
+    // Si no hay configuración guardada manualmente, mostrar por defecto todos los buques activos
+    if (configuredUnits.length === 0) {
+        configuredUnits = activeBuqueUnits.map(u => u.id);
+    }
+
+    if (configuredUnits.length === 0) {
+        container.innerHTML = `<div style="color: #94a3b8; font-style: italic; text-align: center; padding: 10px;">Sin unidades configuradas</div>`;
+        return;
+    }
+
+    let html = `
+        <table style="width: 100%; border-collapse: collapse; font-size: 0.78rem;" id="codescReqTable">
+            <thead>
+                <tr style="color: #64748b; border-bottom: 1px solid #e2e8f0; font-weight: 700; text-align: left;">
+                    <th style="padding: 6px 4px;">BUQUE / REPARTO</th>
+                    <th style="text-align: center; padding: 6px 4px; width: 45px;">OF</th>
+                    <th style="text-align: center; padding: 6px 4px; width: 45px;">TR</th>
+                    <th style="text-align: center; padding: 6px 4px; width: 55px;">TOTAL</th>
+                    ${canEdit ? '<th style="text-align: center; padding: 6px 4px; width: 30px;"></th>' : ''}
+                </tr>
+            </thead>
+            <tbody id="codescReqBody">
+    `;
+
+    configuredUnits.forEach(unitId => {
+        const u = (window.orgUnits || []).find(x => x.id === unitId) || { id: unitId, name: unitId };
+        const unitConfig = config[unitId] || { of: 0, tr: 0 };
+        const ofCount = parseInt(unitConfig.of) || 0;
+        const trCount = parseInt(unitConfig.tr) || 0;
+        const total = ofCount + trCount;
+
+        if (canEdit) {
+            html += `
+                <tr style="border-bottom: 1px solid #f1f5f9;">
+                    <td style="padding: 6px 4px; font-weight: 600; color: #334155;" data-unit="${u.id}">${u.name || u.id}</td>
+                    <td style="text-align: center; padding: 6px 4px;">
+                        <input type="number" min="0" class="req-input-of" value="${ofCount}" onchange="window.updateCodescReqTotal(this)" style="width: 40px; text-align: center; padding: 2px; border: 1px solid #cbd5e1; border-radius: 4px;">
+                    </td>
+                    <td style="text-align: center; padding: 6px 4px;">
+                        <input type="number" min="0" class="req-input-tr" value="${trCount}" onchange="window.updateCodescReqTotal(this)" style="width: 40px; text-align: center; padding: 2px; border: 1px solid #cbd5e1; border-radius: 4px;">
+                    </td>
+                    <td style="text-align: center; padding: 6px 4px; font-weight: 800; color: #1e293b;" class="req-text-total">${total}</td>
+                    <td style="text-align: center; padding: 6px 4px;">
+                        <button type="button" onclick="this.closest('tr').remove()" style="border: none; background: transparent; color: #ef4444; font-size: 0.9rem; cursor: pointer; padding: 0;">🗑️</button>
+                    </td>
+                </tr>
+            `;
+        } else {
+            html += `
+                <tr style="border-bottom: 1px solid #f1f5f9;">
+                    <td style="padding: 6px 4px; font-weight: 600; color: #334155;">${u.name || u.id}</td>
+                    <td style="text-align: center; padding: 6px 4px; color: #0284c7; font-weight: 700;">${ofCount}</td>
+                    <td style="text-align: center; padding: 6px 4px; color: #16a34a; font-weight: 700;">${trCount}</td>
+                    <td style="text-align: center; padding: 6px 4px; font-weight: 800; color: #1e293b;">${total}</td>
+                </tr>
+            `;
+        }
+    });
+
+    html += `</tbody></table>`;
     
+    if (canEdit) {
+        html += `
+            <div style="margin-top: 10px; display: flex; justify-content: space-between; align-items: center;">
+                <button type="button" onclick="window.addCodescReqRow()" style="font-size: 0.75rem; padding: 4px 8px; border-radius: 6px; font-weight: 700; border: 1px solid #cbd5e1; background: white; cursor: pointer; color: #475569; display: flex; align-items: center; gap: 4px;">
+                    <span>➕</span> Añadir Buque
+                </button>
+                <button type="button" onclick="window.saveCodescRequiredPersonnel()" style="background: #3b82f6; color: white; border: none; border-radius: 6px; padding: 6px 12px; font-size: 0.75rem; font-weight: 700; cursor: pointer;">
+                    💾 Guardar Requisitos
+                </button>
+            </div>
+        `;
+    }
+
+    container.innerHTML = html;
+};
+
+window.addCodescReqRow = function() {
+    const tbody = document.getElementById('codescReqBody');
+    if (!tbody) return;
+
+    const activeUnits = (window.orgUnits || []).filter(u => u.status === 'ACTIVE').sort((a,b) => (a.name || a.id).localeCompare(b.name || b.id));
+    const options = activeUnits.map(u => `<option value="${u.id}">${u.name || u.id}</option>`).join('');
+
     const tr = document.createElement('tr');
+    tr.style.borderBottom = '1px solid #f1f5f9';
     tr.innerHTML = `
-        <td style="padding: 4px 0;">
-            <input type="text" class="dist-concept" value="${concept}" placeholder="Ej: FRAPAL, GUARDIA..." style="width: 100%; border: 1px solid #cbd5e1; padding: 4px 6px; border-radius: 4px; font-size: 0.8rem; font-weight: 600; color: #1e293b;">
+        <td style="padding: 6px 4px;">
+            <select class="req-unit-select" style="width: 100%; height: 24px; border: 1px solid #cbd5e1; border-radius: 4px; font-size: 0.7rem; font-weight: 600;">
+                <option value="" disabled selected>-- Seleccione Buque --</option>
+                ${options}
+            </select>
         </td>
-        <td style="padding: 4px 0 4px 8px;">
-            <input type="number" class="dist-count" value="${count}" min="0" style="width: 100%; border: 1px solid #cbd5e1; padding: 4px 6px; border-radius: 4px; font-size: 0.8rem; font-weight: 600; text-align: center; color: #1e293b;">
+        <td style="text-align: center; padding: 6px 4px;">
+            <input type="number" min="0" class="req-input-of" value="0" onchange="window.updateCodescReqTotal(this)" style="width: 40px; text-align: center; padding: 2px; border: 1px solid #cbd5e1; border-radius: 4px;">
         </td>
-        <td style="padding: 4px 0 4px 4px; text-align: center;">
-            <button type="button" onclick="this.closest('tr').remove();" style="border: none; background: transparent; color: #ef4444; font-size: 0.95rem; cursor: pointer; padding: 0;">🗑️</button>
+        <td style="text-align: center; padding: 6px 4px;">
+            <input type="number" min="0" class="req-input-tr" value="0" onchange="window.updateCodescReqTotal(this)" style="width: 40px; text-align: center; padding: 2px; border: 1px solid #cbd5e1; border-radius: 4px;">
+        </td>
+        <td style="text-align: center; padding: 6px 4px; font-weight: 800; color: #1e293b;" class="req-text-total">0</td>
+        <td style="text-align: center; padding: 6px 4px;">
+            <button type="button" onclick="this.closest('tr').remove()" style="border: none; background: transparent; color: #ef4444; font-size: 0.9rem; cursor: pointer; padding: 0;">🗑️</button>
         </td>
     `;
     tbody.appendChild(tr);
+};
+
+window.updateCodescReqTotal = function(input) {
+    const tr = input.closest('tr');
+    const ofInput = tr.querySelector('.req-input-of');
+    const trInput = tr.querySelector('.req-input-tr');
+    const totalCell = tr.querySelector('.req-text-total');
+    
+    const ofVal = parseInt(ofInput.value) || 0;
+    const trVal = parseInt(trInput.value) || 0;
+    totalCell.textContent = ofVal + trVal;
+};
+
+window.saveCodescRequiredPersonnel = function() {
+    const container = document.getElementById('codescRequiredPersonnelContainer');
+    if (!container) return;
+    
+    const config = {};
+    const rows = container.querySelectorAll('tbody tr');
+    let hasError = false;
+    
+    rows.forEach(row => {
+        let unitId = null;
+        const select = row.querySelector('.req-unit-select');
+        const tdText = row.querySelector('td[data-unit]');
+
+        if (select) {
+            unitId = select.value;
+        } else if (tdText) {
+            unitId = tdText.getAttribute('data-unit');
+        }
+
+        if (!unitId || unitId === '') {
+            hasError = true;
+            return;
+        }
+
+        const ofInput = row.querySelector('.req-input-of');
+        const trInput = row.querySelector('.req-input-tr');
+        if (ofInput && trInput) {
+            config[unitId] = {
+                of: parseInt(ofInput.value) || 0,
+                tr: parseInt(trInput.value) || 0
+            };
+        }
+    });
+
+    if (hasError) {
+        if (typeof showNotification === 'function') {
+            showNotification('Por favor seleccione un buque en todas las filas', 'warning');
+        } else {
+            alert('Por favor seleccione un buque en todas las filas');
+        }
+        return;
+    }
+    
+    codescReqPersonnelConfig = config;
+    saveAppState('codesc_req_personnel_config', JSON.stringify(config));
+    if (typeof showNotification === 'function') {
+        showNotification('Personal requerido guardado exitosamente', 'success');
+    } else {
+        alert('Personal requerido actualizado correctamente');
+    }
+    window.renderCodescRequiredPersonnel();
+};
+
+window.renderCodescCompliance = function () {
+    const container = document.getElementById('codescComplianceContainer');
+    if (!container) return;
+
+    const omaiDay = document.getElementById('codescDailyOmaiDate')?.value;
+    if (!omaiDay) {
+        container.innerHTML = `<div style="color: #94a3b8; font-style: italic; text-align: center; padding: 10px;">Seleccione una fecha OMAI para ver el cumplimiento</div>`;
+        return;
+    }
+
+    const BUQUES_PARENT = 'SEGURIDAD_MAR_TIMA__HTMC_';
+    const activeUnits = (window.orgUnits || []).filter(u => 
+        u.status === 'ACTIVE' && 
+        (u.parent === BUQUES_PARENT || u.parent_id === BUQUES_PARENT || u.id.toUpperCase().includes('CODESC') || u.name.toUpperCase().includes('CODESC') || u.id.toUpperCase().includes('UT_100.61') || u.name.toUpperCase().includes('100.61') || u.id.toUpperCase().includes('100.51') || u.parent_id === 'GT_100_51')
+    ).sort((a, b) => (a.name || a.id).localeCompare(b.name || b.id));
+
+    if (activeUnits.length === 0) {
+        container.innerHTML = `<div style="color: #94a3b8; font-style: italic; text-align: center; padding: 10px;">Sin unidades configuradas</div>`;
+        return;
+    }
+
+    // Calcular el límite
+    const now = new Date();
+    const deadline = new Date(omaiDay + 'T14:00:00');
+    const isLate = now > deadline;
+
+    let html = `
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem;">
+    `;
+
+    activeUnits.forEach(u => {
+        // Buscar si esta unidad ya registró para este omaiDay
+        const record = codescDailyRegistry.find(r => r.omaiDay === omaiDay && r.unitId === u.id);
+
+        let cardBg = '#f8fafc';
+        let statusHtml = '';
+        let borderStyle = '1px solid #e2e8f0';
+
+        if (record) {
+            cardBg = '#f0fdf4'; // Verde claro
+            borderStyle = '1px solid #bbf7d0';
+            const regTime = new Date(record.submittedAt);
+            const timeStr = regTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            const ofs = record.oficiales !== undefined ? record.oficiales : 0;
+            const trs = record.tripulantes !== undefined ? record.tripulantes : record.total;
+            
+            statusHtml = `
+                <div style="display: flex; flex-direction: column; gap: 2px;">
+                    <span style="font-size: 0.72rem; color: #16a34a; font-weight: 800; text-transform: uppercase;">🟢 REGISTRADO</span>
+                    <span style="font-size: 0.68rem; color: #475569;">Hora: ${timeStr} · Tot: <strong>${record.total}</strong> (${ofs} OF / ${trs} TR)</span>
+                </div>
+            `;
+        } else {
+            if (isLate) {
+                cardBg = '#fef2f2'; // Rojo claro
+                borderStyle = '1px solid #fca5a5';
+                statusHtml = `
+                    <div style="display: flex; flex-direction: column; gap: 2px;">
+                        <span style="font-size: 0.72rem; color: #dc2626; font-weight: 900; text-transform: uppercase; animation: pulse-red-border 2s infinite;" class="pulse-border-red">🔴 NO REGISTRADO</span>
+                        <span style="font-size: 0.68rem; color: #b91c1c; font-weight: 700;">¡PLAZO EXCEDIDO (14:00)!</span>
+                    </div>
+                `;
+            } else {
+                cardBg = '#fffbeb'; // Amarillo claro
+                borderStyle = '1px solid #fde68a';
+                statusHtml = `
+                    <div style="display: flex; flex-direction: column; gap: 2px;">
+                        <span style="font-size: 0.72rem; color: #d97706; font-weight: 800; text-transform: uppercase;">🟡 PENDIENTE</span>
+                        <span style="font-size: 0.68rem; color: #b45309;">Plazo hasta las 14:00</span>
+                    </div>
+                `;
+            }
+        }
+
+        html += `
+            <div style="background: ${cardBg}; border: ${borderStyle}; border-radius: 8px; padding: 10px 14px; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 1px 3px rgba(0,0,0,0.02);">
+                <span style="font-weight: 700; font-size: 0.82rem; color: #1e293b; max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${u.name || u.id}">${u.name || u.id}</span>
+                ${statusHtml}
+            </div>
+        `;
+    });
+
+    html += `</div>`;
+    container.innerHTML = html;
+};
+
+window.updateCodescFormCounts = function () {
+    // Count officers and crew in the current form table rows
+    const rows = document.querySelectorAll('#codescDailyFormDistributionBody tr.codesc-p-row');
+    const officialGrades = ['ALFG', 'TNFG', 'TNNV', 'CPCB', 'CPFG', 'CPNV', 'CPTN', 'CALM', 'VALM', 'ALMR'];
+    const isOfficer = (grade) => grade && officialGrades.includes(grade.toUpperCase().trim());
+
+    let ofsCount = 0;
+    let trsCount = 0;
+
+    rows.forEach(row => {
+        const grade = row.querySelector('.p-grade')?.value || '';
+        if (grade) {
+            if (isOfficer(grade)) {
+                ofsCount++;
+            } else {
+                trsCount++;
+            }
+        }
+    });
+    
+    // Actualizar también la visualización de los grupos de abajo
+    if (typeof window.updateDailyCodescGroupsDisplay === 'function') {
+        window.updateDailyCodescGroupsDisplay();
+    }
+};
+
+/**
+ * Actualiza la visualización de los integrantes en las tarjetas de FOXTROT y GOLF debajo de la tabla.
+ */
+window.updateDailyCodescGroupsDisplay = function () {
+    const container = document.getElementById('codescDailyDistributionGroupsContainer');
+    const listFoxtrot = document.getElementById('listFoxtrot');
+    const listGolf = document.getElementById('listGolf');
+    const countFoxtrot = document.getElementById('countFoxtrot');
+    const countGolf = document.getElementById('countGolf');
+
+    if (!container || !listFoxtrot || !listGolf) return;
+
+    listFoxtrot.innerHTML = '';
+    listGolf.innerHTML = '';
+
+    const rows = document.querySelectorAll('#codescDailyFormDistributionBody tr.codesc-p-row');
+    let fCount = 0;
+    let gCount = 0;
+
+    rows.forEach(row => {
+        const name = row.querySelector('.p-name')?.value.trim() || '';
+        const grade = row.querySelector('.p-grade')?.value || '';
+        const specialty = row.querySelector('.p-especialidad')?.value.trim() || '';
+        const grupo = row.querySelector('.p-grupo')?.value || '';
+
+        if (!name) return;
+
+        const displayName = specialty ? `${grade} ${specialty} ${name}` : `${grade} ${name}`;
+        const li = document.createElement('li');
+        li.style.padding = '5px 10px';
+        li.style.background = 'white';
+        li.style.border = '1px solid #e2e8f0';
+        li.style.borderRadius = '6px';
+        li.style.fontWeight = '600';
+        li.style.color = '#334155';
+        li.style.display = 'flex';
+        li.style.alignItems = 'center';
+        li.style.gap = '6px';
+        li.style.boxShadow = '0 1px 2px rgba(0,0,0,0.02)';
+        
+        // Emojis según jerarquía
+        const officialGrades = ['ALFG', 'TNFG', 'TNNV', 'CPCB', 'CPFG', 'CPNV', 'CPTN', 'CALM', 'VALM', 'ALMR'];
+        const isOfficer = officialGrades.includes(grade.toUpperCase().trim());
+        const roleIcon = isOfficer ? '👮' : '⚓';
+        
+        li.innerHTML = `<span style="font-size: 0.85rem;">${roleIcon}</span> <span>${displayName}</span>`;
+
+        if (grupo === 'FOXTROT') {
+            listFoxtrot.appendChild(li);
+            fCount++;
+        } else if (grupo === 'GOLF') {
+            listGolf.appendChild(li);
+            gCount++;
+        }
+    });
+
+    if (fCount > 0 || gCount > 0) {
+        container.style.display = 'flex';
+    } else {
+        container.style.display = 'none';
+    }
+
+    if (countFoxtrot) countFoxtrot.textContent = `${fCount} pax`;
+    if (countGolf) countGolf.textContent = `${gCount} pax`;
+};
+
+/**
+ * Genera la distribución balanceada y equiparada por grados en dos grupos: FOXTROT y GOLF.
+ */
+window.generateDailyCodescDistribution = function () {
+    const rows = document.querySelectorAll('#codescDailyFormDistributionBody tr.codesc-p-row');
+    const validRows = [];
+    
+    rows.forEach(row => {
+        const name = row.querySelector('.p-name')?.value.trim() || '';
+        const grade = row.querySelector('.p-grade')?.value || 'N/A';
+        if (name) {
+            validRows.push({ row, grade, name });
+        }
+    });
+
+    if (validRows.length === 0) {
+        showNotification('⚠️ No hay personal registrado con nombres en la lista.', 'warning');
+        return;
+    }
+
+    // Agrupar por grado
+    const groupsByGrade = {};
+    validRows.forEach(item => {
+        if (!groupsByGrade[item.grade]) {
+            groupsByGrade[item.grade] = [];
+        }
+        groupsByGrade[item.grade].push(item);
+    });
+
+    let foxtrotCount = 0;
+    let golfCount = 0;
+
+    // Jerarquía de grados para distribuir rangos más altos primero
+    const gradeHierarchy = ['CPNV', 'CPFG', 'CPCB', 'TNNV', 'TNFG', 'ALFG', 'SUBM', 'SUBP', 'SUBS', 'SGOP', 'SGOS', 'CBOP', 'CBOS', 'MARO', 'N/A'];
+    
+    const sortedGrades = Object.keys(groupsByGrade).sort((a, b) => {
+        const idxA = gradeHierarchy.indexOf(a);
+        const idxB = gradeHierarchy.indexOf(b);
+        return (idxA === -1 ? 99 : idxA) - (idxB === -1 ? 99 : idxB);
+    });
+
+    sortedGrades.forEach(grade => {
+        const items = groupsByGrade[grade];
+        // Mezclar aleatoriamente el personal del mismo grado para evitar sesgos
+        const shuffled = items.sort(() => Math.random() - 0.5);
+
+        shuffled.forEach(item => {
+            let assignedGroup = '';
+            if (foxtrotCount < golfCount) {
+                assignedGroup = 'FOXTROT';
+                foxtrotCount++;
+            } else if (golfCount < foxtrotCount) {
+                assignedGroup = 'GOLF';
+                golfCount++;
+            } else {
+                // Alternancia aleatoria en caso de empate
+                assignedGroup = Math.random() < 0.5 ? 'FOXTROT' : 'GOLF';
+                if (assignedGroup === 'FOXTROT') foxtrotCount++;
+                else golfCount++;
+            }
+
+            const selectEl = item.row.querySelector('.p-grupo');
+            if (selectEl) {
+                selectEl.value = assignedGroup;
+            }
+        });
+    });
+
+    showNotification(`⚖️ Distribución balanceada: ${foxtrotCount} en FOXTROT y ${golfCount} en GOLF.`, 'success');
+    
+    // Forzar actualización de las tarjetas
+    window.updateDailyCodescGroupsDisplay();
+};
+
+window.addCodescDailyFormPersonnelRow = function (grade = '', especialidad = '', name = '', cedula = '', reparto = '', contacto = '', unidadDestino = '', funcion = '', grupo = '') {
+    const tbody = document.getElementById('codescDailyFormDistributionBody');
+    if (!tbody) return;
+
+    // Remover fila placeholder
+    const placeholder = tbody.querySelector('td[colspan="10"]') || tbody.querySelector('td[colspan="6"]');
+    if (placeholder) {
+        tbody.innerHTML = '';
+    }
+
+    const tr = document.createElement('tr');
+    tr.className = 'codesc-p-row';
+    tr.style.borderBottom = '1px solid #e2e8f0';
+
+    const grades = ['MARO', 'CBOS', 'CBOP', 'SGOS', 'SGOP', 'SUBS', 'SUBP', 'SUBM', 'ALFG', 'TNFG', 'TNNV', 'CPCB', 'CPFG', 'CPNV'];
+    let gradeOptions = '<option value="">-- Grado --</option>' + grades.map(g => `
+        <option value="${g}" ${g === grade.toUpperCase() ? 'selected' : ''}>${g}</option>
+    `).join('');
+
+    const activeUnits = (window.orgUnits || []).filter(u => u.status === 'ACTIVE').sort((a,b) => (a.name || a.id).localeCompare(b.name || b.id));
+    let repartoOptions = '<option value="">-- Reparto --</option>' + activeUnits.map(u => `
+        <option value="${u.id}" ${u.id === reparto ? 'selected' : ''}>${u.name || u.id}</option>
+    `).join('');
+    let destinoOptions = '<option value="">-- Destino --</option>' + activeUnits.map(u => `
+        <option value="${u.id}" ${u.id === unidadDestino ? 'selected' : ''}>${u.name || u.id}</option>
+    `).join('');
+
+    const functionsList = window.getUniquePersonnelFunctions();
+    let funcionOptions = '<option value="">-- Función --</option>' + functionsList.map(f => `
+        <option value="${f}" ${f === funcion.toUpperCase() ? 'selected' : ''}>${f}</option>
+    `).join('');
+
+    const groups = ['GOLF', 'FOXTROT', 'ALFA', 'BRAVO', 'CHARLIE', 'DELTA', 'N/A'];
+    let grupoOptions = '<option value="">-- Grupo --</option>' + groups.map(g => `
+        <option value="${g}" ${g === grupo.toUpperCase() ? 'selected' : ''}>${g}</option>
+    `).join('');
+
+    tr.innerHTML = `
+        <td style="padding: 6px 4px; vertical-align: middle;">
+            <select class="p-grade" onchange="window.updateCodescFormCounts()" style="width: 100%; height: 28px; border: 1px solid #cbd5e1; border-radius: 4px; padding: 2px; font-size: 0.78rem; font-weight: 700; color: #1e293b;">
+                ${gradeOptions}
+            </select>
+        </td>
+        <td style="padding: 6px 4px; vertical-align: middle;">
+            <input type="text" class="p-especialidad" oninput="window.updateDailyCodescGroupsDisplay()" value="${especialidad}" placeholder="Esp..." style="width: 100%; height: 28px; border: 1px solid #cbd5e1; border-radius: 4px; padding: 4px 6px; font-size: 0.78rem; font-weight: 600; color: #1e293b;">
+        </td>
+        <td style="padding: 6px 4px; vertical-align: middle;">
+            <input type="text" class="p-name" oninput="window.updateDailyCodescGroupsDisplay()" value="${name}" placeholder="Nombres..." style="width: 100%; height: 28px; border: 1px solid #cbd5e1; border-radius: 4px; padding: 4px 6px; font-size: 0.78rem; font-weight: 600; color: #1e293b;">
+        </td>
+        <td style="padding: 6px 4px; vertical-align: middle;">
+            <input type="text" class="p-cedula" value="${cedula}" placeholder="Cédula..." style="width: 100%; height: 28px; border: 1px solid #cbd5e1; border-radius: 4px; padding: 4px 6px; font-size: 0.78rem; font-family: monospace; font-weight: 600; color: #1e293b;">
+        </td>
+        <td style="padding: 6px 4px; vertical-align: middle;">
+            <select class="p-reparto" style="width: 100%; height: 28px; border: 1px solid #cbd5e1; border-radius: 4px; padding: 2px; font-size: 0.78rem; font-weight: 600; color: #1e293b;">
+                ${repartoOptions}
+            </select>
+        </td>
+        <td style="padding: 6px 4px; vertical-align: middle;">
+            <input type="text" class="p-contacto" value="${contacto}" placeholder="Telf..." style="width: 100%; height: 28px; border: 1px solid #cbd5e1; border-radius: 4px; padding: 4px 6px; font-size: 0.78rem; font-weight: 600; color: #1e293b;">
+        </td>
+        <td style="padding: 6px 4px; vertical-align: middle;">
+            <select class="p-destino" style="width: 100%; height: 28px; border: 1px solid #cbd5e1; border-radius: 4px; padding: 2px; font-size: 0.78rem; font-weight: 600; color: #1e293b;">
+                ${destinoOptions}
+            </select>
+        </td>
+        <td style="padding: 6px 4px; vertical-align: middle;">
+            <select class="p-funcion" style="width: 100%; height: 28px; border: 1px solid #cbd5e1; border-radius: 4px; padding: 2px; font-size: 0.78rem; font-weight: 600; color: #1e293b;">
+                ${funcionOptions}
+            </select>
+        </td>
+        <td style="padding: 6px 4px; vertical-align: middle;">
+            <select class="p-grupo" onchange="window.updateDailyCodescGroupsDisplay()" style="width: 100%; height: 28px; border: 1px solid #cbd5e1; border-radius: 4px; padding: 2px; font-size: 0.78rem; font-weight: 600; color: #1e293b;">
+                ${grupoOptions}
+            </select>
+        </td>
+        <td style="padding: 6px 4px; vertical-align: middle; text-align: center;">
+            <button type="button" onclick="this.closest('tr').remove(); window.updateCodescFormCounts();" style="border: none; background: transparent; color: #ef4444; font-size: 0.95rem; cursor: pointer; padding: 0;">🗑️</button>
+        </td>
+    `;
+    tbody.appendChild(tr);
+    window.updateCodescFormCounts();
 };
 
 window.autoFillCodescDailyPersonnel = function () {
@@ -13695,60 +15251,128 @@ window.autoFillCodescDailyPersonnel = function () {
 
     const unitPersonnel = (typeof personnel !== 'undefined' ? personnel : []).filter(p => {
         if (isDesignatedOtherFunction(p.funcion)) return false;
+        const cond = (p.condition || 'OPERATIVO').toUpperCase();
+        if (cond === 'BAJA' || cond === 'INACTIVO') return false;
         return window.resolveOrgUnitId(p.grupoDestino) === unitId;
+    }).sort((a, b) => {
+        return a.name.localeCompare(b.name);
     });
 
-    // Agrupar por función y contar
-    const functionCounts = {};
-    unitPersonnel.forEach(p => {
-        const f = (p.funcion || 'OPERATIVO').toUpperCase().trim();
-        functionCounts[f] = (functionCounts[f] || 0) + 1;
-    });
-
-    // Rellenar filas en la tabla del formulario
-    Object.entries(functionCounts).forEach(([fn, count]) => {
-        window.addCodescDailyFormDistributionRow(fn, count);
-    });
-    
-    // Si está vacío, agregar una fila en blanco por comodidad
-    if (Object.keys(functionCounts).length === 0) {
-        window.addCodescDailyFormDistributionRow('', 0);
+    if (unitPersonnel.length === 0) {
+        tbody.innerHTML = '';
+        // Create 3 empty rows so the user has fields to fill immediately
+        for(let i=0; i<3; i++) {
+            window.addCodescDailyFormPersonnelRow('', '', '', '', unitId, '', unitId, 'GUARDIA', 'N/A');
+        }
+        if (typeof showNotification === 'function') {
+            showNotification("No hay personal registrado en la base global. Se han habilitado campos para registrar la dotación manualmente.", "info");
+        }
+        return;
     }
+
+    unitPersonnel.forEach(p => {
+        window.addCodescDailyFormPersonnelRow(
+            p.grade || '',
+            p.specialty || p.especialidad || '',
+            p.name || '',
+            p.idNum || p.cedula || '',
+            p.unit || unitId,
+            p.contact || p.contacto || '',
+            p.grupoDestino || unitId,
+            p.funcion || 'GUARDIA',
+            p.rotacion || p.grupoRotacion || 'N/A'
+        );
+    });
 };
 
 window.saveCodescDailyRecord = async function (e) {
     if (e) e.preventDefault();
     
     const omaiDay = document.getElementById('codescDailyOmaiDate').value;
-    const unitId = document.getElementById('codescDailyUnit').value;
-    if (!omaiDay || !unitId) {
-        showNotification("Por favor, seleccione el Día OMAI y el Reparto.", "warning");
+    if (!omaiDay) {
+        showNotification("Por favor, seleccione el Día OMAI.", "warning");
         return;
     }
 
+    const currentRole = sessionStorage.getItem('currentUserRole') || '';
+    const selectedUnitVal = document.getElementById('codescDailyUnit')?.value;
+
+    let unitId = selectedUnitVal || currentRole;
+    if (!unitId || unitId === 'GLOBAL') unitId = currentRole || 'GLOBAL';
+
+    let unitObj = (window.orgUnits || []).find(u => u.id === unitId || u.name === unitId);
+    let unitName = unitObj ? (unitObj.name || unitObj.id) : unitId;
+
     const recordId = document.getElementById('codescDailyEditId').value || 'rec_' + Date.now();
-    const unitOption = document.getElementById('codescDailyUnit').options[document.getElementById('codescDailyUnit').selectedIndex];
-    const unitName = unitOption ? unitOption.text : unitId;
     
     const now = new Date();
     const deadlineDate = new Date(omaiDay + 'T14:00:00');
     const status = (now <= deadlineDate) ? 'A Tiempo' : 'Fuera de Tiempo';
 
-    // Recopilar distribución táctica de la tabla del formulario
-    const distRows = [];
+    // Recopilar la lista de personal con sus estados seleccionados y todos los campos de cada fila
+    const pList = [];
+    const functionGroups = {}; // Para el resumen de distribución
     let totalSum = 0;
-    document.querySelectorAll('#codescDailyFormDistributionBody tr').forEach(row => {
-        const conceptInput = row.querySelector('.dist-concept');
-        const countInput = row.querySelector('.dist-count');
-        if (conceptInput && countInput) {
-            const concept = conceptInput.value.trim();
-            const count = parseInt(countInput.value) || 0;
-            if (concept) {
-                distRows.push({ concept: concept, count: count });
-                totalSum += count;
+    let totalOficiales = 0;
+    let totalTripulantes = 0;
+
+    const officialGrades = ['ALFG', 'TNFG', 'TNNV', 'CPCB', 'CPFG', 'CPNV', 'CPTN', 'CALM', 'VALM', 'ALMR'];
+    const isOfficer = (grade) => grade && officialGrades.includes(grade.toUpperCase().trim());
+
+    const rows = document.querySelectorAll('#codescDailyFormDistributionBody tr.codesc-p-row');
+    if (rows.length === 0) {
+        showNotification("No hay personal en la lista para registrar.", "warning");
+        return;
+    }
+
+    rows.forEach(row => {
+        const grade = row.querySelector('.p-grade')?.value || '';
+        const specialty = row.querySelector('.p-especialidad')?.value.trim() || '';
+        const name = row.querySelector('.p-name')?.value.trim() || '';
+        const cedula = row.querySelector('.p-cedula')?.value.trim() || '';
+        const reparto = row.querySelector('.p-reparto')?.value || '';
+        const contacto = row.querySelector('.p-contacto')?.value.trim() || '';
+        const destino = row.querySelector('.p-destino')?.value || '';
+        const funcion = row.querySelector('.p-funcion')?.value || 'GUARDIA';
+        const grupo = row.querySelector('.p-grupo')?.value || 'N/A';
+
+        if (name) {
+            pList.push({
+                grade,
+                specialty,
+                name,
+                cedula,
+                reparto,
+                contacto,
+                destino,
+                grupoDestino: destino, // compatibilidad
+                funcion,
+                grupo
+            });
+
+            // Agrupar para el resumen de distribución
+            const stUpper = funcion.toUpperCase().trim();
+            if (!functionGroups[stUpper]) {
+                functionGroups[stUpper] = { of: 0, tr: 0 };
             }
+            if (isOfficer(grade)) {
+                functionGroups[stUpper].of++;
+                totalOficiales++;
+            } else {
+                functionGroups[stUpper].tr++;
+                totalTripulantes++;
+            }
+            totalSum++;
         }
     });
+
+    // Formatear la distribución de resumen
+    const distRows = Object.entries(functionGroups).map(([concept, counts]) => ({
+        concept: concept,
+        oficiales: counts.of,
+        tripulantes: counts.tr,
+        total: counts.of + counts.tr
+    }));
 
     const record = {
         id: recordId,
@@ -13756,8 +15380,10 @@ window.saveCodescDailyRecord = async function (e) {
         unitId: unitId,
         unitName: unitName,
         total: totalSum,
+        oficiales: totalOficiales,
+        tripulantes: totalTripulantes,
         distribution: distRows,
-        novedades: document.getElementById('codescDailyNovedades').value.trim(),
+        personnelList: pList,
         submittedAt: now.toISOString(),
         status: status
     };
@@ -13770,9 +15396,9 @@ window.saveCodescDailyRecord = async function (e) {
         codescDailyRegistry[existingIndex] = record;
         showNotification("Registro diario actualizado correctamente.");
     } else {
-        const alreadyExists = codescDailyRegistry.some(r => r.omaiDay === omaiDay && r.unitId === unitId);
+        const alreadyExists = codescDailyRegistry.some(r => r.omaiDay === omaiDay && r.unitId === unitId && r.id !== recordId);
         if (alreadyExists) {
-            showNotification("Ya existe un registro para esta unidad en el Día OMAI seleccionado.", "warning");
+            showNotification(`Ya existe un registro guardado para ${unitName} en el Día OMAI seleccionado.`, "warning");
             return;
         }
         codescDailyRegistry.push(record);
@@ -13782,19 +15408,92 @@ window.saveCodescDailyRecord = async function (e) {
     saveAppState('codescDailyRegistry', JSON.stringify(codescDailyRegistry));
     window.clearCodescDailyForm();
     window.renderCodescDailyRegistryTable();
+    window.renderCodescCompliance();
+};
+
+window.viewCodescPersonnelList = function(recordId) {
+    const record = codescDailyRegistry.find(r => r.id === recordId);
+    if (!record || !record.personnelList || record.personnelList.length === 0) {
+        if (typeof showNotification === 'function') showNotification("No hay detalle de personas en este registro.", "warning");
+        else alert("No hay detalle de personas en este registro.");
+        return;
+    }
+
+    const existing = document.getElementById('codescPersonnelListOverlay');
+    if (existing) existing.remove();
+
+    const overlay = document.createElement('div');
+    overlay.id = 'codescPersonnelListOverlay';
+    overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);z-index:99999;display:flex;align-items:center;justify-content:center;';
+    
+    let rowsHtml = record.personnelList.map((p, idx) => `
+        <tr style="border-bottom: 1px solid #e2e8f0;">
+            <td style="padding:6px; font-weight:700; color:#475569;">${idx + 1}</td>
+            <td style="padding:6px;">${p.grade || '-'}</td>
+            <td style="padding:6px;">${p.specialty || '-'}</td>
+            <td style="padding:6px; font-weight:700; color:#0f172a;">${p.name}</td>
+            <td style="padding:6px;">${p.cedula || '-'}</td>
+            <td style="padding:6px;">${p.reparto || p.unit || '-'}</td>
+            <td style="padding:6px; font-weight:600; color:#2563eb;">${p.funcion || 'GUARDIA'}</td>
+            <td style="padding:6px;">${p.grupo || 'N/A'}</td>
+        </tr>
+    `).join('');
+
+    overlay.innerHTML = `
+        <div style="background:#fff; border-radius:12px; padding:1.5rem; max-width:850px; width:95%; max-height:85vh; overflow-y:auto; box-shadow:0 20px 60px rgba(0,0,0,0.3);" onclick="event.stopPropagation()">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem; border-bottom:2px solid #e2e8f0; padding-bottom:0.5rem;">
+                <div>
+                    <h3 style="margin:0; color:#1e293b; font-size:1.1rem;">📋 Detalle de Personal - ${record.unitName}</h3>
+                    <span style="font-size:0.8rem; color:#64748b;">Día OMAI: <strong>${record.omaiDay}</strong> | Total: <strong>${record.personnelList.length} registrados</strong></span>
+                </div>
+                <button onclick="document.getElementById('codescPersonnelListOverlay')?.remove()" style="background:none; border:none; font-size:1.4rem; cursor:pointer; color:#64748b;">✖</button>
+            </div>
+            <table style="width:100%; border-collapse:collapse; font-size:0.8rem; text-align:left;">
+                <thead>
+                    <tr style="background:#f8fafc; color:#475569; border-bottom:2px solid #cbd5e1; font-weight:800;">
+                        <th style="padding:8px 6px;">#</th>
+                        <th style="padding:8px 6px;">GRADO</th>
+                        <th style="padding:8px 6px;">ESP</th>
+                        <th style="padding:8px 6px;">NOMBRES Y APELLIDOS</th>
+                        <th style="padding:8px 6px;">CÉDULA</th>
+                        <th style="padding:8px 6px;">REPARTO</th>
+                        <th style="padding:8px 6px;">FUNCIÓN</th>
+                        <th style="padding:8px 6px;">ROTACIÓN</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${rowsHtml}
+                </tbody>
+            </table>
+            <div style="text-align:right; margin-top:1.5rem;">
+                <button onclick="document.getElementById('codescPersonnelListOverlay')?.remove()" style="padding:0.5rem 1.2rem; background:#3b82f6; color:#fff; border:none; border-radius:6px; font-weight:700; cursor:pointer;">Cerrar</button>
+            </div>
+        </div>
+    `;
+
+    overlay.onclick = function() {
+        overlay.remove();
+    };
+
+    document.body.appendChild(overlay);
 };
 
 window.clearCodescDailyForm = function () {
     document.getElementById('codescDailyEditId').value = '';
-    document.getElementById('codescDailyUnit').value = '';
     const tbody = document.getElementById('codescDailyFormDistributionBody');
-    if (tbody) tbody.innerHTML = '';
-    document.getElementById('codescDailyNovedades').value = '';
-    
+    if (tbody) {
+        tbody.innerHTML = '';
+        // Insert 3 blank rows by default
+        for(let i=0; i<3; i++) {
+            window.addCodescDailyFormPersonnelRow();
+        }
+    }
     window.setDefaultCodescDailyOmaiDate();
-    
-    document.getElementById('codescDailyUnit').disabled = false;
-    document.getElementById('codescDailyOmaiDate').disabled = false;
+    const unitEl = document.getElementById('codescDailyUnit');
+    const dateEl = document.getElementById('codescDailyOmaiDate');
+    if (unitEl) unitEl.disabled = false;
+    if (dateEl) dateEl.disabled = false;
+    window.renderCodescCompliance();
 };
 
 window.editCodescDailyRecord = function (id) {
@@ -13803,25 +15502,62 @@ window.editCodescDailyRecord = function (id) {
 
     document.getElementById('codescDailyEditId').value = record.id;
     document.getElementById('codescDailyOmaiDate').value = record.omaiDay;
-    document.getElementById('codescDailyUnit').value = record.unitId;
-    document.getElementById('codescDailyNovedades').value = record.novedades || '';
 
-    // Cargar distribución dinámica
+    // Cargar la tabla del personal con los estados guardados
     const tbody = document.getElementById('codescDailyFormDistributionBody');
     if (tbody) {
         tbody.innerHTML = '';
-        if (record.distribution && Array.isArray(record.distribution)) {
-            record.distribution.forEach(d => {
-                window.addCodescDailyFormDistributionRow(d.concept, d.count);
+        if (record.personnelList && Array.isArray(record.personnelList) && record.personnelList.length > 0) {
+            record.personnelList.forEach(p => {
+                window.addCodescDailyFormPersonnelRow(
+                    p.grade || '',
+                    p.specialty || p.especialidad || '',
+                    p.name || '',
+                    p.cedula || p.idNum || '',
+                    p.reparto || p.unit || '',
+                    p.contacto || p.contact || '',
+                    p.destino || p.grupoDestino || '',
+                    p.funcion || p.state || 'GUARDIA',
+                    p.grupo || p.rotacion || 'N/A'
+                );
             });
         } else {
             // Compatibilidad hacia atrás
-            window.addCodescDailyFormDistributionRow('TOTAL', record.total || 0);
+            const unitPersonnel = (typeof personnel !== 'undefined' ? personnel : []).filter(p => {
+                if (isDesignatedOtherFunction(p.funcion)) return false;
+                const cond = (p.condition || 'OPERATIVO').toUpperCase();
+                if (cond === 'BAJA' || cond === 'INACTIVO') return false;
+                return window.resolveOrgUnitId(p.grupoDestino) === record.unitId;
+            }).sort((a, b) => a.name.localeCompare(b.name));
+
+            unitPersonnel.forEach(p => {
+                window.addCodescDailyFormPersonnelRow(
+                    p.grade || '',
+                    p.specialty || p.especialidad || '',
+                    p.name || '',
+                    p.cedula || p.idNum || '',
+                    p.unit || '',
+                    p.contact || p.contacto || '',
+                    p.grupoDestino || '',
+                    p.funcion || 'GUARDIA',
+                    p.rotacion || p.grupoRotacion || 'N/A'
+                );
+            });
         }
     }
 
-    document.getElementById('codescDailyUnit').disabled = true;
-    document.getElementById('codescDailyOmaiDate').disabled = true;
+    const unitEl = document.getElementById('codescDailyUnit');
+    const dateEl = document.getElementById('codescDailyOmaiDate');
+    if (unitEl) {
+        unitEl.value = record.unitId;
+        unitEl.disabled = true;
+    }
+    if (dateEl) dateEl.disabled = true;
+
+    const formElement = document.getElementById('codescDailyOmaiDate');
+    if (formElement && typeof formElement.scrollIntoView === 'function') {
+        formElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
     
     showNotification("Modo edición activado. Modifique los campos necesarios.");
 };
@@ -13832,6 +15568,7 @@ window.deleteCodescDailyRecord = function (id) {
     codescDailyRegistry = codescDailyRegistry.filter(r => r.id !== id);
     saveAppState('codescDailyRegistry', JSON.stringify(codescDailyRegistry));
     window.renderCodescDailyRegistryTable();
+    window.renderCodescCompliance();
     showNotification("Registro diario eliminado.");
 };
 
@@ -13872,16 +15609,33 @@ window.renderCodescDailyRegistryTable = function () {
         const statusBgColor = (r.status === 'A Tiempo') ? '#f0fdf4' : '#fef2f2';
         const statusBorder = (r.status === 'A Tiempo') ? '1px solid #bbf7d0' : '1px solid #fee2e2';
 
-        // Detalle de la distribución táctica como etiquetas
+        const countPers = (r.personnelList && Array.isArray(r.personnelList)) ? r.personnelList.length : 0;
+        const viewListBtn = countPers > 0 ? `
+            <div style="margin-top:6px;">
+                <button type="button" onclick="window.viewCodescPersonnelList('${r.id}')" style="background:#0284c7; color:#fff; border:none; border-radius:6px; padding:4px 10px; font-size:0.75rem; font-weight:700; cursor:pointer;">
+                    👥 Ver Lista (${countPers} personas)
+                </button>
+            </div>
+        ` : '';
+
+        // Detalle de la distribución táctica con OF/TR
         let distHtml = '';
         if (r.distribution && Array.isArray(r.distribution)) {
-            distHtml = r.distribution.map(d => `
-                <span style="display:inline-block; background:#f1f5f9; color:#475569; padding:2px 6px; border-radius:4px; font-size:0.75rem; font-weight:700; margin-right:4px; margin-bottom:4px; border: 1px solid #e2e8f0;">
-                    ${d.concept}: ${String(d.count).padStart(2, '0')}
-                </span>
-            `).join('');
+            distHtml = r.distribution.map(d => {
+                const ofs = d.oficiales || 0;
+                const trs = d.tripulantes || 0;
+                const tot = d.total || (ofs + trs);
+                return `
+                    <span style="display:inline-block; background:#f8fafc; color:#1e293b; padding:4px 8px; border-radius:6px; font-size:0.72rem; font-weight:700; margin-right:6px; margin-bottom:6px; border: 1px solid #e2e8f0; box-shadow: 0 1px 2px rgba(0,0,0,0.02);">
+                        <strong style="color: #475569;">${d.concept}:</strong> 
+                        <span style="color: #0284c7; margin-left: 2px;">${ofs} OF</span> / 
+                        <span style="color: #16a34a;">${trs} TR</span> 
+                        <span style="color: #64748b; font-size: 0.65rem;">(Tot: ${tot})</span>
+                    </span>
+                `;
+            }).join('') + viewListBtn;
         } else {
-            distHtml = `<span style="color:#94a3b8; font-style:italic;">Total: ${r.total}</span>`;
+            distHtml = `<span style="color:#94a3b8; font-style:italic;">Total: ${r.total}</span>` + viewListBtn;
         }
 
         const tr = document.createElement('tr');
@@ -13895,18 +15649,348 @@ window.renderCodescDailyRegistryTable = function () {
             <td style="padding: 10px 12px; max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${r.novedades || ''}">${r.novedades || '<span style="color:#cbd5e1; font-style:italic;">Ninguna</span>'}</td>
             <td style="padding: 10px 12px; color: #64748b; font-size: 0.75rem;">${localTimeStr}</td>
             <td style="padding: 10px 12px; text-align: center;">
-                <span style="display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 0.7rem; font-weight: 800; color: ${statusBadgeColor}; background: ${statusBgColor}; border: ${statusBorder};">
+                <span style="display: inline-block; padding: 4px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: 800; color: ${statusBadgeColor}; background: ${statusBgColor}; border: ${statusBorder};">
                     ${r.status}
                 </span>
             </td>
-            <td style="padding: 10px 12px; text-align: center; display: flex; gap: 4px; justify-content: center;">
-                <button onclick="editCodescDailyRecord('${r.id}')" class="btn-action edit" style="padding: 4px 8px; font-size: 0.75rem; border-radius: 4px; border: 1px solid #cbd5e1; background: white; cursor: pointer;" title="Editar">✏️</button>
-                <button onclick="deleteCodescDailyRecord('${r.id}')" class="btn-action delete" style="padding: 4px 8px; font-size: 0.75rem; border-radius: 4px; border: 1px solid #ef4444; background: #fef2f2; color: #ef4444; cursor: pointer;" title="Eliminar">🗑️</button>
+            <td style="padding: 10px 12px; text-align: center;">
+                <div style="display: flex; gap: 6px; justify-content: center;">
+                    <button class="btn-action edit" onclick="window.editCodescDailyRecord('${r.id}')" style="border: none; background: #3b82f6; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 0.75rem; font-weight: 700;">✏️</button>
+                    <button class="btn-action delete" onclick="window.deleteCodescDailyRecord('${r.id}')" style="border: none; background: #ef4444; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 0.75rem; font-weight: 700;">🗑️</button>
+                </div>
             </td>
         `;
         tbody.appendChild(tr);
     });
+
+    if (typeof window.renderCodescPersonnelRegistryTable === 'function') {
+        window.renderCodescPersonnelRegistryTable();
+    }
 };
+
+window.renderCodescPersonnelRegistryTable = function() {
+    const tbody = document.getElementById('codescPersonnelRegistryTableBody');
+    if (!tbody) return;
+
+    tbody.innerHTML = '';
+    const filterMonth = document.getElementById('filterCodescDailyMonth')?.value || 'ALL';
+
+    const sortedRecords = [...codescDailyRegistry].sort((a, b) => {
+        return b.omaiDay.localeCompare(a.omaiDay) || a.unitName.localeCompare(b.unitName);
+    });
+
+    let html = '';
+
+    sortedRecords.forEach(r => {
+        if (filterMonth !== 'ALL') {
+            const recMonth = r.omaiDay.split('-')[1];
+            if (recMonth !== filterMonth) return;
+        }
+
+        if (r.personnelList && Array.isArray(r.personnelList)) {
+            r.personnelList.forEach((p, idx) => {
+                html += `
+                <tr style="border-bottom: 1px solid #e2e8f0;">
+                    <td style="padding: 10px 12px; font-weight:600; color:#1e293b;">${r.omaiDay}</td>
+                    <td style="padding: 10px 12px; color:#475569; font-size:0.8rem;">${p.grade || '-'}</td>
+                    <td style="padding: 10px 12px; color:#475569; font-size:0.8rem;">${p.specialty || '-'}</td>
+                    <td style="padding: 10px 12px; font-weight:600; color:#334155;">${p.name || '-'}</td>
+                    <td style="padding: 10px 12px; color:#64748b;">${p.cedula || '-'}</td>
+                    <td style="padding: 10px 12px; color:#475569;">${p.reparto || r.unitName}</td>
+                    <td style="padding: 10px 12px; color:#0284c7; font-weight:600;">${p.funcion || 'GUARDIA'}</td>
+                    <td style="padding: 10px 12px; color:#475569;">${p.grupo || 'N/A'}</td>
+                    <td style="padding: 10px 12px; text-align: center; white-space:nowrap;">
+                        <button onclick="window.editCodescPersonnel('${r.id}', ${idx})" title="Modificar" style="background:none; border:none; cursor:pointer; font-size:1.1rem; margin-right:5px; transition: transform 0.2s;" onmouseover="this.style.transform='scale(1.2)'" onmouseout="this.style.transform='scale(1)'">✏️</button>
+                        <button onclick="window.deleteCodescPersonnel('${r.id}', ${idx})" title="Borrar" style="background:none; border:none; cursor:pointer; font-size:1.1rem; transition: transform 0.2s;" onmouseover="this.style.transform='scale(1.2)'" onmouseout="this.style.transform='scale(1)'">🗑️</button>
+                    </td>
+                </tr>
+                `;
+            });
+        }
+    });
+
+    if (!html) {
+        tbody.innerHTML = `<tr><td colspan="9" style="text-align: center; padding: 2rem; color: #94a3b8; font-style: italic;">No hay personal registrado para el filtro seleccionado.</td></tr>`;
+    } else {
+        tbody.innerHTML = html;
+    }
+};
+
+window.deleteCodescPersonnel = async function(recordId, personIndex) {
+    let confirmed = false;
+    if (typeof Swal !== 'undefined') {
+        const result = await Swal.fire({
+            title: '¿Eliminar persona?',
+            text: "Se borrará este registro del parte diario correspondiente. ¿Continuar?",
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#ef4444',
+            cancelButtonColor: '#64748b',
+            confirmButtonText: 'Sí, borrar',
+            cancelButtonText: 'Cancelar'
+        });
+        confirmed = result.isConfirmed;
+    } else {
+        confirmed = confirm("Se borrará este registro del parte diario correspondiente. ¿Continuar?");
+    }
+
+    if (confirmed) {
+        const record = codescDailyRegistry.find(r => r.id === recordId);
+        if (record && record.personnelList) {
+            record.personnelList.splice(personIndex, 1);
+            recalculateCodescRecordTotals(record);
+            saveAppState('codescDailyRegistry', JSON.stringify(codescDailyRegistry));
+            if (typeof renderCodescDailyRegistryTable === 'function') renderCodescDailyRegistryTable();
+            if (typeof renderCodescCompliance === 'function') renderCodescCompliance();
+            if (typeof Swal !== 'undefined') {
+                Swal.fire('Eliminado', 'El registro de personal ha sido eliminado.', 'success');
+            } else if (typeof showNotification === 'function') {
+                showNotification('El registro de personal ha sido eliminado.', 'success');
+            }
+        }
+    }
+};
+
+window.editCodescPersonnel = async function(recordId, personIndex) {
+    const record = codescDailyRegistry.find(r => r.id === recordId);
+    if (!record || !record.personnelList) return;
+    const p = record.personnelList[personIndex];
+
+    let formValues = null;
+
+    if (typeof Swal !== 'undefined') {
+        const { value } = await Swal.fire({
+            title: 'Editar Personal CODESC',
+            html: `
+                <div style="display:flex; flex-direction:column; gap:10px; text-align:left; font-size:0.85rem; font-family: 'Inter', sans-serif;">
+                    <label style="font-weight:600; color:#475569;">Grado: <input id="swal-p-grade" class="swal2-input" value="${p.grade || ''}" style="height:35px; font-size:0.85rem; margin-top:2px; padding:0 8px; width:90%;"></label>
+                    <label style="font-weight:600; color:#475569;">Especialidad: <input id="swal-p-specialty" class="swal2-input" value="${p.specialty || ''}" style="height:35px; font-size:0.85rem; margin-top:2px; padding:0 8px; width:90%;"></label>
+                    <label style="font-weight:600; color:#475569;">Nombre: <input id="swal-p-name" class="swal2-input" value="${p.name || ''}" style="height:35px; font-size:0.85rem; margin-top:2px; padding:0 8px; width:90%;"></label>
+                    <label style="font-weight:600; color:#475569;">Cédula: <input id="swal-p-cedula" class="swal2-input" value="${p.cedula || ''}" style="height:35px; font-size:0.85rem; margin-top:2px; padding:0 8px; width:90%;"></label>
+                    <label style="font-weight:600; color:#475569;">Reparto: <input id="swal-p-reparto" class="swal2-input" value="${p.reparto || ''}" style="height:35px; font-size:0.85rem; margin-top:2px; padding:0 8px; width:90%;"></label>
+                    <label style="font-weight:600; color:#475569;">Función: <input id="swal-p-funcion" class="swal2-input" value="${p.funcion || 'GUARDIA'}" style="height:35px; font-size:0.85rem; margin-top:2px; padding:0 8px; width:90%;"></label>
+                    <label style="font-weight:600; color:#475569;">Grupo: <input id="swal-p-grupo" class="swal2-input" value="${p.grupo || 'N/A'}" style="height:35px; font-size:0.85rem; margin-top:2px; padding:0 8px; width:90%;"></label>
+                </div>
+            `,
+            focusConfirm: false,
+            showCancelButton: true,
+            confirmButtonText: 'Guardar Cambios',
+            cancelButtonText: 'Cancelar',
+            confirmButtonColor: '#3b82f6',
+            preConfirm: () => {
+                return {
+                    grade: document.getElementById('swal-p-grade').value.trim(),
+                    specialty: document.getElementById('swal-p-specialty').value.trim(),
+                    name: document.getElementById('swal-p-name').value.trim(),
+                    cedula: document.getElementById('swal-p-cedula').value.trim(),
+                    reparto: document.getElementById('swal-p-reparto').value.trim(),
+                    funcion: document.getElementById('swal-p-funcion').value.trim(),
+                    grupo: document.getElementById('swal-p-grupo').value.trim()
+                }
+            }
+        });
+        formValues = value;
+    } else {
+        const nameVal = prompt("Editar Nombre de Personal:", p.name || '');
+        if (nameVal !== null) {
+            formValues = {
+                grade: prompt("Grado:", p.grade || '') || '',
+                specialty: prompt("Especialidad:", p.specialty || '') || '',
+                name: nameVal.trim(),
+                cedula: prompt("Cédula:", p.cedula || '') || '',
+                reparto: prompt("Reparto:", p.reparto || '') || '',
+                funcion: prompt("Función:", p.funcion || 'GUARDIA') || 'GUARDIA',
+                grupo: prompt("Grupo:", p.grupo || 'N/A') || 'N/A'
+            };
+        }
+    }
+
+    if (formValues) {
+        if (!formValues.name) {
+            if (typeof Swal !== 'undefined') Swal.fire('Error', 'El nombre es obligatorio.', 'error');
+            else showNotification('El nombre es obligatorio.', 'error');
+            return;
+        }
+        
+        p.grade = formValues.grade;
+        p.specialty = formValues.specialty;
+        p.name = formValues.name;
+        p.cedula = formValues.cedula;
+        p.reparto = formValues.reparto;
+        p.funcion = formValues.funcion;
+        p.grupo = formValues.grupo;
+        // Compatibilidad hacia atras con grupoDestino/destino si se usaba
+        p.destino = formValues.reparto;
+        p.grupoDestino = formValues.reparto;
+
+        recalculateCodescRecordTotals(record);
+        saveAppState('codescDailyRegistry', JSON.stringify(codescDailyRegistry));
+        if (typeof renderCodescDailyRegistryTable === 'function') renderCodescDailyRegistryTable();
+        if (typeof renderCodescCompliance === 'function') renderCodescCompliance();
+        if (typeof Swal !== 'undefined') {
+            Swal.fire({
+                title: 'Guardado', 
+                text: 'Los datos del personal han sido actualizados.', 
+                icon: 'success',
+                timer: 1500,
+                showConfirmButton: false
+            });
+        } else if (typeof showNotification === 'function') {
+            showNotification('Los datos del personal han sido actualizados.', 'success');
+        }
+    }
+};
+
+window.recalculateCodescRecordTotals = function(record) {
+    let functionGroups = {};
+    let totalOficiales = 0;
+    let totalTripulantes = 0;
+
+    record.personnelList.forEach(p => {
+        const stUpper = (p.funcion || 'GUARDIA').toUpperCase().trim();
+        if (!functionGroups[stUpper]) {
+            functionGroups[stUpper] = { of: 0, tr: 0 };
+        }
+        
+        const g = (p.grade || '').toUpperCase();
+        const officerRanks = ['ALM', 'VALM', 'CALM', 'CPNV', 'CPFG', 'CPCB', 'TNNV', 'TNFG', 'ALFZ', 'GMM'];
+        let isOff = false;
+        if (officerRanks.some(r => g.includes(r))) {
+            isOff = true;
+        }
+
+        if (isOff) {
+            functionGroups[stUpper].of++;
+            totalOficiales++;
+        } else {
+            functionGroups[stUpper].tr++;
+            totalTripulantes++;
+        }
+    });
+
+    const distArray = Object.keys(functionGroups).map(k => {
+        return {
+            concept: k,
+            oficiales: functionGroups[k].of,
+            tripulantes: functionGroups[k].tr,
+            total: functionGroups[k].of + functionGroups[k].tr
+        };
+    });
+
+    record.oficiales = totalOficiales;
+    record.tripulantes = totalTripulantes;
+    record.total = totalOficiales + totalTripulantes;
+    record.distribution = distArray;
+};
+
+window.exportCodescPersonnelPDF = function() {
+    if (typeof jspdf === 'undefined') {
+        Swal.fire('Error', 'Librería jsPDF no disponible.', 'error');
+        return;
+    }
+    const { jsPDF } = jspdf;
+    const doc = new jsPDF('l', 'pt', 'a4'); 
+    
+    doc.setFontSize(16);
+    doc.text('Tabla de Registro Nominativo de Personal CODESC', 40, 40);
+    doc.setFontSize(10);
+    
+    const filterMonth = document.getElementById('filterCodescDailyMonth')?.value || 'ALL';
+    let monthText = 'Todos';
+    if (filterMonth !== 'ALL') {
+        const el = document.getElementById('filterCodescDailyMonth');
+        if (el && el.options && el.selectedIndex >= 0) {
+            monthText = el.options[el.selectedIndex].text;
+        }
+    }
+    doc.text('Mes Filtro: ' + monthText, 40, 60);
+
+    const sortedRecords = [...codescDailyRegistry].sort((a, b) => b.omaiDay.localeCompare(a.omaiDay) || a.unitName.localeCompare(b.unitName));
+    
+    let rows = [];
+    sortedRecords.forEach(r => {
+        if (filterMonth !== 'ALL') {
+            const recMonth = r.omaiDay.split('-')[1];
+            if (recMonth !== filterMonth) return;
+        }
+        if (r.personnelList && Array.isArray(r.personnelList)) {
+            r.personnelList.forEach(p => {
+                rows.push([
+                    r.omaiDay,
+                    p.grade || '-',
+                    p.specialty || '-',
+                    p.name || '-',
+                    p.cedula || '-',
+                    p.reparto || r.unitName,
+                    p.funcion || 'GUARDIA',
+                    p.grupo || 'N/A'
+                ]);
+            });
+        }
+    });
+
+    if (rows.length === 0) {
+        Swal.fire('Vacio', 'No hay datos para exportar con el filtro actual.', 'info');
+        return;
+    }
+
+    if (typeof doc.autoTable === 'function') {
+        doc.autoTable({
+            startY: 80,
+            head: [['DÍA OMAI', 'GRADO', 'ESPECIALIDAD', 'NOMBRE', 'CÉDULA', 'REPARTO', 'FUNCIÓN', 'GRUPO']],
+            body: rows,
+            theme: 'grid',
+            headStyles: { fillColor: [59, 130, 246] },
+            styles: { fontSize: 8 }
+        });
+        doc.save(`Personal_CODESC_${filterMonth}.pdf`);
+    } else {
+        Swal.fire('Error', 'El plugin autoTable de jsPDF no está disponible.', 'error');
+    }
+};
+
+window.exportCodescPersonnelExcel = function() {
+    if (typeof XLSX === 'undefined') {
+        Swal.fire('Error', 'Librería XLSX no disponible.', 'error');
+        return;
+    }
+    
+    const filterMonth = document.getElementById('filterCodescDailyMonth')?.value || 'ALL';
+    const sortedRecords = [...codescDailyRegistry].sort((a, b) => b.omaiDay.localeCompare(a.omaiDay) || a.unitName.localeCompare(b.unitName));
+    
+    let rows = [['DÍA OMAI', 'GRADO', 'ESPECIALIDAD', 'NOMBRE', 'CÉDULA', 'REPARTO', 'FUNCIÓN', 'GRUPO']];
+    sortedRecords.forEach(r => {
+        if (filterMonth !== 'ALL') {
+            const recMonth = r.omaiDay.split('-')[1];
+            if (recMonth !== filterMonth) return;
+        }
+        if (r.personnelList && Array.isArray(r.personnelList)) {
+            r.personnelList.forEach(p => {
+                rows.push([
+                    r.omaiDay,
+                    p.grade || '-',
+                    p.specialty || '-',
+                    p.name || '-',
+                    p.cedula || '-',
+                    p.reparto || r.unitName,
+                    p.funcion || 'GUARDIA',
+                    p.grupo || 'N/A'
+                ]);
+            });
+        }
+    });
+
+    if (rows.length <= 1) {
+        Swal.fire('Vacio', 'No hay datos para exportar con el filtro actual.', 'info');
+        return;
+    }
+
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Personal_CODESC");
+    XLSX.writeFile(wb, `Personal_CODESC_${filterMonth}.xlsx`);
+};
+
 
 window.exportCodescDailyRegistryExcel = function () {
     if (codescDailyRegistry.length === 0) {
@@ -13917,7 +16001,12 @@ window.exportCodescDailyRegistryExcel = function () {
     const data = codescDailyRegistry.map(r => {
         let distText = '';
         if (r.distribution && Array.isArray(r.distribution)) {
-            distText = r.distribution.map(d => `${d.concept}: ${d.count}`).join(' | ');
+            distText = r.distribution.map(d => {
+                const ofs = d.oficiales !== undefined ? d.oficiales : 0;
+                const trs = d.tripulantes !== undefined ? d.tripulantes : (d.count || 0);
+                const tot = d.total || (ofs + trs);
+                return `${d.concept}: ${ofs} OF / ${trs} TR (Tot: ${tot})`;
+            }).join(' | ');
         } else {
             distText = `Total: ${r.total}`;
         }
@@ -13942,3 +16031,208 @@ window.exportCodescDailyRegistryExcel = function () {
 
 
 
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  MÓDULO: CONFIGURACIÓN DE HORARIOS + ROTACIÓN AUTOMÁTICA DE FUNCIONES (HASTA 5 TURNOS)
+// ═══════════════════════════════════════════════════════════════════════════
+
+window.shiftTimesConfig = {
+    T1: { start: '08:00', end: '16:00', active: true },
+    T2: { start: '16:00', end: '00:00', active: true },
+    T3: { start: '00:00', end: '08:00', active: true },
+    T4: { start: '12:00', end: '18:00', active: false },
+    T5: { start: '18:00', end: '00:00', active: false },
+};
+
+/** Estructura de grupos y funciones */
+const ROT_GROUPS = [
+    { name: 'GRUPO 1', letter: 'A', color: '#3b82f6', bg: '#1e3a6e' },
+    { name: 'GRUPO 2', letter: 'B', color: '#10b981', bg: '#064e3b' },
+    { name: 'GRUPO 3', letter: 'C', color: '#f59e0b', bg: '#78350f' },
+    { name: 'GRUPO 4', letter: 'D', color: '#8b5cf6', bg: '#3b0764' },
+];
+
+/** Offset de turno inicial por posición de función (1-indexed) */
+const ROT_FUNC_OFFSET = { '1':0, '2':2, '3':1, '4':0, '5':2, 'R':1 };
+
+/** Paleta visual por turno */
+const ROT_COLORS = {
+    T1: { bg: 'rgba(59,130,246,0.22)',  fg: '#93c5fd', border: '#3b82f6' },
+    T2: { bg: 'rgba(16,185,129,0.22)',  fg: '#6ee7b7', border: '#10b981' },
+    T3: { bg: 'rgba(245,158,11,0.22)',  fg: '#fcd34d', border: '#f59e0b' },
+    T4: { bg: 'rgba(139,92,246,0.22)',  fg: '#c084fc', border: '#8b5cf6' },
+    T5: { bg: 'rgba(236,72,153,0.22)',  fg: '#f472b6', border: '#ec4899' },
+};
+
+/** Lee los horarios actuales del formulario */
+function readShiftInputs() {
+    const g = id => { const el = document.getElementById(id); return el ? el.value : ''; };
+    const a = id => { const el = document.getElementById(id); return el ? el.checked : false; };
+    return {
+        T1: { start: g('shiftT1Start') || '08:00', end: g('shiftT1End') || '16:00', active: a('shiftT1Active') },
+        T2: { start: g('shiftT2Start') || '16:00', end: g('shiftT2End') || '00:00', active: a('shiftT2Active') },
+        T3: { start: g('shiftT3Start') || '00:00', end: g('shiftT3End') || '08:00', active: a('shiftT3Active') },
+        T4: { start: g('shiftT4Start') || '12:00', end: g('shiftT4End') || '18:00', active: a('shiftT4Active') },
+        T5: { start: g('shiftT5Start') || '18:00', end: g('shiftT5End') || '00:00', active: a('shiftT5Active') },
+    };
+}
+
+/** Construye la etiqueta del turno con horario configurado */
+function buildShiftBadge(tKey) {
+    const cfg = window.shiftTimesConfig[tKey] || { start: '--:--', end: '--:--', active: false };
+    const c   = ROT_COLORS[tKey] || { bg: '#334155', fg: '#cbd5e1', border: '#475569' };
+    const label = `TURNO ${tKey.slice(1)} · s${cfg.start}–${cfg.end}`.replace('\s', '');
+    return `<span style="background:${c.bg}; color:${c.fg}; border:1px solid ${c.border}; padding:3px 8px; border-radius:7px; font-weight:700; font-size:0.72rem; display:inline-block; white-space:nowrap;">${label}</span>`;
+}
+
+/** Actualiza los badges del ciclo en el encabezado */
+function updateCycleLabels() {
+    const cfg = window.shiftTimesConfig;
+    const container = document.getElementById('cycleLabelsContainer');
+    if (!container) return;
+    container.innerHTML = '';
+    
+    // Obtener turnos activos
+    const activeKeys = ['T1', 'T2', 'T3', 'T4', 'T5'].filter(t => cfg[t] && cfg[t].active);
+    
+    activeKeys.forEach((tKey, idx) => {
+        const tCfg = cfg[tKey];
+        const colors = ROT_COLORS[tKey] || { bg: '#334155', fg: '#cbd5e1', border: '#475569' };
+        
+        const label = document.createElement('span');
+        label.style.cssText = `background:${colors.bg}; color:${colors.fg}; border:1px solid ${colors.border}; padding:3px 12px; border-radius:20px; font-size:0.75rem; font-weight:800;`;
+        label.textContent = `T${tKey.slice(1)}: ${tCfg.start}–${tCfg.end}`;
+        container.appendChild(label);
+        
+        if (idx < activeKeys.length - 1) {
+            const arrow = document.createElement('span');
+            arrow.style.cssText = 'color:#6366f1; font-size:1rem; font-weight:900;';
+            arrow.textContent = ' → ';
+            container.appendChild(arrow);
+        }
+    });
+    
+    if (activeKeys.length > 0) {
+        const arrow = document.createElement('span');
+        arrow.style.cssText = 'color:#6366f1; font-size:1rem; font-weight:900; margin-left: 5px;';
+        arrow.textContent = ` → T${activeKeys[0].slice(1)}…`;
+        container.appendChild(arrow);
+    } else {
+        container.innerHTML = '<span style="color:#ef4444; font-size:0.75rem; font-weight:700;">⚠ Al menos 1 turno debe estar activo</span>';
+    }
+}
+
+/** Renderiza la tabla de rotación automática usando los horarios configurados */
+window.renderRotationTable = function() {
+    window.shiftTimesConfig = readShiftInputs();
+    updateCycleLabels();
+
+    const tbody = document.getElementById('rotationDemoTableBody');
+    if (!tbody) return;
+
+    // Obtener lista de turnos activos para el ciclo de rotación
+    let activeShifts = ['T1', 'T2', 'T3', 'T4', 'T5'].filter(t => window.shiftTimesConfig[t] && window.shiftTimesConfig[t].active);
+    
+    if (activeShifts.length === 0) {
+        activeShifts = ['T1']; // Fallback
+    }
+
+    let html = '';
+    ROT_GROUPS.forEach(grp => {
+        html += `<tr style="background:${grp.bg};">
+            <td colspan="8" style="padding:8px 14px; color:${grp.color}; font-weight:900; font-size:0.8rem;
+                letter-spacing:1px; border-bottom:2px solid ${grp.color}; font-family:'Outfit',sans-serif; text-transform:uppercase;">
+                ━━ ${grp.name} — FUNCIONES ${grp.letter}1 al ${grp.letter}5 + REACCIÓN ━━
+            </td></tr>`;
+
+        ['1','2','3','4','5','R'].forEach(fn => {
+            const isReac  = fn === 'R';
+            const label   = isReac ? 'REACCIÓN' : grp.letter + fn;
+            const icon    = isReac ? '⚡' : '🎯';
+            const color   = isReac ? '#fca5a5' : '#e2e8f0';
+            const offset  = ROT_FUNC_OFFSET[fn];
+
+            // Generar 6 días de rotación
+            let cells = '';
+            for (let d = 0; d < 6; d++) {
+                const tKey = activeShifts[(offset + d) % activeShifts.length];
+                cells += `<td style="padding:6px 4px; text-align:center;">${buildShiftBadge(tKey)}</td>`;
+            }
+
+            // Patrón del ciclo (los turnos activos en su secuencia)
+            const cycle = activeShifts.map(t => 'T' + t.slice(1)).join('→');
+
+            html += `<tr style="border-bottom:1px solid rgba(255,255,255,0.06); transition:background 0.2s;"
+                        onmouseover="this.style.background='rgba(255,255,255,0.04)'"
+                        onmouseout="this.style.background='transparent'">
+                <td style="padding:8px 14px; color:${color}; font-weight:800; font-size:0.88rem; white-space:nowrap;">${icon} ${label}</td>
+                ${cells}
+                <td style="padding:8px 8px; text-align:center; color:#6366f1; font-size:0.7rem; font-weight:800; white-space:nowrap;">${cycle}</td>
+            </tr>`;
+        });
+    });
+    tbody.innerHTML = html;
+};
+
+/** Guarda los horarios en localStorage y servidor */
+window.saveShiftTimes = function() {
+    window.shiftTimesConfig = readShiftInputs();
+    try {
+        localStorage.setItem('omai_shiftTimesConfig', JSON.stringify(window.shiftTimesConfig));
+        if (typeof saveAppState === 'function') saveAppState('shiftTimesConfig', window.shiftTimesConfig);
+        const s = document.getElementById('shiftTimesSaveStatus');
+        if (s) {
+            s.textContent = '✅ Horarios guardados — ' + new Date().toLocaleTimeString();
+            s.style.display = 'block'; s.style.color = '#6ee7b7';
+            setTimeout(() => { s.style.display = 'none'; }, 3000);
+        }
+    } catch(e) { console.error('Error guardando horarios:', e); }
+};
+
+/** Restablece los horarios por defecto */
+window.resetShiftTimes = function() {
+    const def = {
+        T1: { start: '08:00', end: '16:00', active: true },
+        T2: { start: '16:00', end: '00:00', active: true },
+        T3: { start: '00:00', end: '08:00', active: true },
+        T4: { start: '12:00', end: '18:00', active: false },
+        T5: { start: '18:00', end: '00:00', active: false },
+    };
+    ['T1','T2','T3','T4','T5'].forEach(t => {
+        const s = document.getElementById('shift'+t+'Start');
+        const e = document.getElementById('shift'+t+'End');
+        const a = document.getElementById('shift'+t+'Active');
+        if (s) s.value = def[t].start;
+        if (e) e.value = def[t].end;
+        if (a) a.checked = def[t].active;
+    });
+    window.shiftTimesConfig = def;
+    window.renderRotationTable();
+};
+
+/** Carga horarios guardados y renderiza la tabla al iniciar */
+window.loadShiftTimesConfig = function() {
+    try {
+        const saved = localStorage.getItem('omai_shiftTimesConfig');
+        if (saved) {
+            const cfg = JSON.parse(saved);
+            window.shiftTimesConfig = cfg;
+            ['T1','T2','T3','T4','T5'].forEach(t => {
+                const s = document.getElementById('shift'+t+'Start');
+                const e = document.getElementById('shift'+t+'End');
+                const a = document.getElementById('shift'+t+'Active');
+                if (cfg[t]) {
+                    if (s) s.value = cfg[t].start;
+                    if (e) e.value = cfg[t].end;
+                    if (a) a.checked = cfg[t].active !== undefined ? cfg[t].active : (t !== 'T4' && t !== 'T5');
+                }
+            });
+        }
+    } catch(e) { console.error('Error cargando horarios:', e); }
+    window.renderRotationTable();
+};
+
+// Inicializar al cargar el DOM
+document.addEventListener('DOMContentLoaded', function() {
+    setTimeout(window.loadShiftTimesConfig, 600);
+});

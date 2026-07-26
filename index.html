@@ -30,12 +30,13 @@
         href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@700;800;900&display=swap"
         rel="stylesheet">
 
-    <!-- PDF & Excel Libraries -->
+    <!-- PDF, Excel & UI Libraries -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script src="https://unpkg.com/togeojson@0.16.0/togeojson.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
     <link rel="stylesheet" href="style.css">
     <style>
@@ -376,8 +377,8 @@
 
         .multi-select-dropdown {
             position: absolute;
-            bottom: 100%;
-            margin-bottom: 4px;
+            top: 100%;
+            margin-top: 4px;
             left: 0;
             right: 0;
             background: white;
@@ -569,7 +570,7 @@
                     <option value="ADMINISTRADOR">ADMINISTRADOR</option>
                     <option value="JEFE OMAI">JEFE OMAI</option>
                     <option value="PERSONAL OMAI">PERSONAL OMAI</option>
-                    <option value="LOGÍSTICA OMAI">LOGÍSTICA OMAI</option>
+                    <option value="LOGISTICA OMAI">LOGÍSTICA OMAI</option>
                     <option value="INTELIGENCIA OMAI">INTELIGENCIA OMAI</option>
                     <option value="CMDTE GT 51">CMDTE GT 100.51</option>
                 </select>
@@ -701,25 +702,9 @@
                         <div class="sub-menu">
                             <button class="sub-menu-btn active" data-view="personnelView"
                                 onclick="activateSubmenuView('personnelView', this)">Registro de Personal</button>
-                            <button class="sub-menu-btn" data-view="watchDivisionView"
-                                style="pointer-events: none; opacity: 0.5;">División de Guardia (B/E)</button>
                             <button class="sub-menu-btn" data-view="distributionView"
                                 onclick="activateSubmenuView('distributionView', this)">Distribución de
                                 Personal</button>
-                            <button class="sub-menu-btn" data-view="postDistributionView"
-                                onclick="activateSubmenuView('postDistributionView', this)">Distribución por
-                                Puestos</button>
-                            <button class="sub-menu-btn" data-view="commandPostView"
-                                onclick="activateSubmenuView('commandPostView', this)">Registro de Puesto de
-                                Mando</button>
-                            <button class="sub-menu-btn" data-view="otherFunctionsView"
-                                onclick="activateSubmenuView('otherFunctionsView', this)">Designación Otras
-                                Funciones</button>
-                            <button class="sub-menu-btn" data-view="regimenDiferenciadoView"
-                                onclick="activateSubmenuView('regimenDiferenciadoView', this)">Personal con Régimen
-                                Diferenciado</button>
-                            <button class="sub-menu-btn" data-view="dailyCodescRegistryView"
-                                onclick="activateSubmenuView('dailyCodescRegistryView', this)">Registro diario CODESC</button>
                             <button class="sub-menu-btn" data-view="personnelStatsView"
                                 onclick="activateSubmenuView('personnelStatsView', this)">Estadísticas de
                                 Personal</button>
@@ -742,12 +727,9 @@
                                 </button>
                                 <div id="nested-ordpat" class="nested-content"
                                     style="display: none; padding-left: 1rem;">
-                                    <button class="sub-menu-btn" data-view="ordpatEchoView"
-                                        onclick="activateSubmenuView('ordpatEchoView', this)">ORDEN DE PATRULLA GT
-                                        ECHO</button>
-                                    <button class="sub-menu-btn" data-view="ordpat51View"
-                                        onclick="activateSubmenuView('ordpat51View', this)">ORDEN DE PATRULLA GT
-                                        100.51</button>
+                                    <button class="sub-menu-btn" data-view="ordpatUnifiedView"
+                                        onclick="activateSubmenuView('ordpatUnifiedView', this)">📋 Generar Orden de
+                                        Patrulla</button>
                                     <button class="sub-menu-btn" data-view="patrolTemplateRegistryView"
                                         onclick="activateSubmenuView('patrolTemplateRegistryView', this)">Registro de
                                         Gestión de Órdenes</button>
@@ -1352,8 +1334,8 @@
                         <div>
                             <h3 style="margin:0; color:#b91c1c; font-family:'Outfit',sans-serif;">Clave Maestra de
                                 Borrado de Datos</h3>
-                            <p style="margin:0.2rem 0 0; font-size:0.8rem; color:#991b1b;">Esta clave protege el mídulo
-                                de borrado de datos. Es obligatoria para ejecutar cualquier eliminaciín.</p>
+                            <p style="margin:0.2rem 0 0; font-size:0.8rem; color:#991b1b;">Esta clave protege el módulo
+                                de borrado de datos. Es obligatoria para ejecutar cualquier eliminación.</p>
                         </div>
                     </div>
                     <form id="purgeKeyForm" onsubmit="event.preventDefault(); handleSavePurgeKey(event)"
@@ -1558,6 +1540,7 @@
 
                         <form id="adminOrgForm" onsubmit="handleSaveOrgUnit(event)" style="display: grid; gap: 1.2rem;">
                             <input type="hidden" id="orgUnitIsEdit" value="false">
+                            <input type="hidden" id="orgUnitParentId" value="">
 
                             <div class="form-group">
                                 <label style="font-weight: 700; color: var(--primary);">Identificador Único (ID)</label>
@@ -1573,6 +1556,18 @@
                                 <input type="text" id="orgUnitName" required
                                     style="width: 100%; padding: 0.8rem; border-radius: 8px; border: 1px solid var(--border);"
                                     placeholder="Ej: GT DELTA">
+                            </div>
+
+                            <div class="form-group" id="orgParentGroup">
+                                <label style="font-weight: 700; color: var(--primary);">Unidad Superior
+                                    (Opcional)</label>
+                                <select id="orgUnitParentSelect"
+                                    style="width: 100%; padding: 0.8rem; border-radius: 8px; border: 1px solid var(--border);">
+                                    <option value="">— Ninguna (Unidad Raíz) —</option>
+                                </select>
+                                <small style="color: var(--text-muted); font-size: 0.7rem;">Seleccione la unidad a la
+                                    que estará subordinada. Deje en blanco para crear una unidad de nivel
+                                    superior.</small>
                             </div>
 
                             <div class="form-group">
@@ -1635,8 +1630,25 @@
             </div>
 
             <div id="personnelView" class="fullscreen-view" style="display: none;">
+                <div class="personnel-tabs-bar" style="margin-bottom: 1.5rem;">
+                    <button class="personnel-tab-btn active" data-target-view="personnelView"
+                        onclick="activatePersonnelGroupTab('personnelView', 'personnelView', this)">📋 Registro
+                        Personal</button>
+                    <button class="personnel-tab-btn" data-target-view="commandPostView"
+                        onclick="activatePersonnelGroupTab('commandPostView', 'personnelView', this)">👮 Registro de
+                        PM</button>
+                    <button class="personnel-tab-btn" data-target-view="regimenDiferenciadoView"
+                        onclick="activatePersonnelGroupTab('regimenDiferenciadoView', 'personnelView', this)">🚗
+                        Choferes / Régimen Dif.</button>
+                    <button class="personnel-tab-btn" data-target-view="dailyCodescRegistryView"
+                        onclick="activatePersonnelGroupTab('dailyCodescRegistryView', 'personnelView', this)">📅 Diario
+                        CODESC</button>
+                    <button class="personnel-tab-btn" data-target-view="otherFunctionsView"
+                        onclick="activatePersonnelGroupTab('otherFunctionsView', 'personnelView', this)">⚙️ Otras
+                        Funciones</button>
+                </div>
                 <div class="view-header">
-                    <h2 class="outfit-font">Control Estadístico de Personal</h2>
+                    <h2 class="outfit-font">Registro de Personal</h2>
                     <div style="display: flex; flex-direction: column; gap: 10px; align-items: flex-end;">
                         <div class="view-actions">
                             <button id="newPersonnelLoadBtn" type="button" class="btn-secondary"
@@ -1889,6 +1901,23 @@
             </div>
 
             <div id="otherFunctionsView" class="fullscreen-view" style="display: none;">
+                <div class="personnel-tabs-bar" style="margin-bottom: 1.5rem;">
+                    <button class="personnel-tab-btn" data-target-view="personnelView"
+                        onclick="activatePersonnelGroupTab('personnelView', 'personnelView', this)">📋 Registro
+                        Personal</button>
+                    <button class="personnel-tab-btn" data-target-view="commandPostView"
+                        onclick="activatePersonnelGroupTab('commandPostView', 'personnelView', this)">👮 Registro de
+                        PM</button>
+                    <button class="personnel-tab-btn" data-target-view="regimenDiferenciadoView"
+                        onclick="activatePersonnelGroupTab('regimenDiferenciadoView', 'personnelView', this)">🚗
+                        Choferes / Régimen Dif.</button>
+                    <button class="personnel-tab-btn" data-target-view="dailyCodescRegistryView"
+                        onclick="activatePersonnelGroupTab('dailyCodescRegistryView', 'personnelView', this)">📅 Diario
+                        CODESC</button>
+                    <button class="personnel-tab-btn active" data-target-view="otherFunctionsView"
+                        onclick="activatePersonnelGroupTab('otherFunctionsView', 'personnelView', this)">⚙️ Otras
+                        Funciones</button>
+                </div>
                 <div class="view-header"
                     style="background: linear-gradient(135deg, #1e293b 0%, #334155 100%); padding: 1.5rem; border-radius: 12px; margin-bottom: 1.5rem; color: white; display: flex; justify-content: space-between; align-items: center;">
                     <div style="display:flex; flex-direction:column; gap:5px;">
@@ -2436,9 +2465,9 @@
                     .rd-big-num.clr-purple {
                         color: #c084fc;
                     }
-
-
                 </style>
+
+
 
                 <!-- HEADER EJECUTIVO -->
                 <div class="dash-header">
@@ -2453,6 +2482,15 @@
                         <div class="dash-timestamp">
                             🕐 <span id="dashTimestamp"></span>
                         </div>
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <label
+                                style="font-size: 0.72rem; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;">Filtrar
+                                GT:</label>
+                            <select id="statsGtFilter" onchange="updatePersonnelStats()"
+                                style="background: #1e293b; color: #f8fafc; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 6px 12px; font-size: 0.8rem; font-weight: 700; outline: none; cursor: pointer; transition: all 0.2s;">
+                                <option value="all">🌐 Todos los Grupos de Tarea</option>
+                            </select>
+                        </div>
                         <div class="dash-badge-total">
                             TOTAL: <span id="statTotalPersonal" style="font-size:1.3rem; font-weight:900;">0</span>
                         </div>
@@ -2460,7 +2498,6 @@
                         <button class="dash-action-btn" onclick="window.print()">🖨️ Imprimir</button>
                     </div>
                 </div>
-
                 <!-- BODY DEL DASHBOARD -->
                 <div class="dash-body">
 
@@ -2798,6 +2835,23 @@
 
             <!-- ===== REGISTRO DE PUESTO DE MANDO ===== -->
             <div id="commandPostView" class="fullscreen-view" style="display: none;">
+                <div class="personnel-tabs-bar" style="margin-bottom: 1.5rem;">
+                    <button class="personnel-tab-btn" data-target-view="personnelView"
+                        onclick="activatePersonnelGroupTab('personnelView', 'personnelView', this)">📋 Registro
+                        Personal</button>
+                    <button class="personnel-tab-btn active" data-target-view="commandPostView"
+                        onclick="activatePersonnelGroupTab('commandPostView', 'personnelView', this)">👮 Registro de
+                        PM</button>
+                    <button class="personnel-tab-btn" data-target-view="regimenDiferenciadoView"
+                        onclick="activatePersonnelGroupTab('regimenDiferenciadoView', 'personnelView', this)">🚗
+                        Choferes / Régimen Dif.</button>
+                    <button class="personnel-tab-btn" data-target-view="dailyCodescRegistryView"
+                        onclick="activatePersonnelGroupTab('dailyCodescRegistryView', 'personnelView', this)">📅 Diario
+                        CODESC</button>
+                    <button class="personnel-tab-btn" data-target-view="otherFunctionsView"
+                        onclick="activatePersonnelGroupTab('otherFunctionsView', 'personnelView', this)">⚙️ Otras
+                        Funciones</button>
+                </div>
                 <div class="view-header">
                     <h2 class="outfit-font">Registro de Puesto de Mando</h2>
                 </div>
@@ -3846,10 +3900,24 @@ PARROQUIA/SECTOR: </textarea>
                     <form id="patrolOrderForm">
                         <div class="form-section">
                             <h4>Identificación</h4>
+
+                            <!-- Selector de GT ejecutor -->
+                            <div class="form-group" style="margin-bottom: 15px;">
+                                <label
+                                    style="font-weight: 800; color: var(--accent, #3b82f6); text-transform: uppercase; letter-spacing: 0.5px;">
+                                    🎯 GRUPO DE TAREA EJECUTOR
+                                </label>
+                                <select id="opGTSelector" onchange="window.updateORDPATPrefix()"
+                                    style="width: 100%; background: rgba(59,130,246,0.07); border: 2px solid rgba(59,130,246,0.35); border-radius: 8px; padding: 10px 14px; font-size: 0.9rem; font-weight: 700; color: var(--text, #f1f5f9); outline: none; cursor: pointer;">
+                                    <option value="">-- Seleccionar GT Ejecutor --</option>
+                                </select>
+                            </div>
+
                             <div class="grid-form"
                                 style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px;">
-                                <div class="form-group"><label>PREFIX</label><input type="text" id="opPrefix"
-                                        value="ARE-ORDPAT-UT100.51.4-" readonly></div>
+                                <div class="form-group"><label>PREFIX (AUTO)</label><input type="text" id="opPrefix"
+                                        value="ARE-ORDPAT-UT100.51.4-" readonly
+                                        style="font-size:0.75rem; color: #94a3b8;"></div>
                                 <div class="form-group"><label>DTG (AUTO)</label><input type="text" id="opDTGAuto"
                                         readonly>
                                 </div>
@@ -4104,6 +4172,14 @@ PARROQUIA/SECTOR: </textarea>
 
             <!-- ===== DISTRIBUCION DE PERSONAL ===== -->
             <div id="distributionView" class="fullscreen-view" style="display: none;">
+                <div class="personnel-tabs-bar" style="margin-bottom: 1.5rem;">
+                    <button class="personnel-tab-btn active" data-target-view="distributionView"
+                        onclick="activatePersonnelGroupTab('distributionView', 'distributionView', this)">📋
+                        Distribución de Personal</button>
+                    <button class="personnel-tab-btn" data-target-view="postDistributionView"
+                        onclick="activatePersonnelGroupTab('postDistributionView', 'distributionView', this)">🛡️
+                        Distribución por Puestos</button>
+                </div>
                 <div class="view-header"
                     style="background: linear-gradient(135deg, #1e293b 0%, #334155 100%); padding: 1.5rem; border-radius: 12px; margin-bottom: 1.5rem; color: white;">
                     <div style="display:flex; flex-direction:column; gap:5px;">
@@ -4351,156 +4427,6 @@ PARROQUIA/SECTOR: </textarea>
                     </div>
                 </div>
 
-                <!-- ===== LOGISTICA - CONFIGURACIÓN DE GUARDIA (2x2) ===== -->
-                <div style="margin: 2rem 1rem 1rem;">
-                    <div class="rotation-config-card"
-                        style="background: white; padding: 1.5rem; border-radius: 12px; border: 2px solid #8b5cf6; box-shadow: var(--shadow);">
-                        <h3
-                            style="margin-top: 0; color: #8b5cf6; font-family: 'Outfit', sans-serif; display: flex; align-items: center; gap: 10px; font-size: 1.1rem;">
-                            ⚙️ MOTOR DE GUARDIA LOGÍSTICA (Régimen 2x2)
-                        </h3>
-                        <div
-                            style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem; align-items: end;">
-                            <div class="form-group">
-                                <label style="font-weight: 700; font-size: 0.8rem; color: #4b5563;">FECHA DE INICIO DE
-                                    REFERENCIA</label>
-                                <input type="date" id="logisticsRotationDate"
-                                    style="width: 100%; border: 1px solid #d1d5db; border-radius: 6px; padding: 8px;">
-                            </div>
-                            <div class="form-group">
-                                <label style="font-weight: 700; font-size: 0.8rem; color: #4b5563;">DIVISIÓN QUE INICIA
-                                    FRANCO</label>
-                                <select id="logisticsStartGroup"
-                                    style="width: 100%; border: 1px solid #d1d5db; border-radius: 6px; padding: 8px;">
-                                    <option value="BABOR">BABOR</option>
-                                    <option value="ESTRIBOR" selected>ESTRIBOR</option>
-                                </select>
-                            </div>
-                            <div id="logisticsFrancoBadge"
-                                style="background: #f5f3ff; color: #7c3aed; padding: 12px; border-radius: 8px; font-weight: 800; text-align: center; border: 1px dashed #c084fc; font-size: 0.9rem;">
-                                FRANCO HOY: <span id="logisticsCurrentFranco">S/C</span>
-                            </div>
-                        </div>
-                        <p style="margin: 10px 0 0; font-size: 0.75rem; color: #6b7280; font-style: italic;">
-                            * El ciclo 2x2 alterna automáticamente cada 2 días entre Babor y Estribor.
-                        </p>
-                    </div>
-                </div>
-
-                <div
-                    style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; margin-top: 2rem; padding: 0 1rem;">
-                    <h2 style="color: var(--accent-primary); margin: 0; letter-spacing: 1px;">REGISTRO DE CHOFERES (2x2)
-                    </h2>
-                    <span
-                        style="background:#eff6ff; color:#1d4ed8; border:1px solid #93c5fd; border-radius:8px; padding:6px 14px; font-size:0.8rem; font-weight:700;">
-                        ℹ️ Módulo primario: <strong>Personal → Régimen Diferenciado</strong>
-                    </span>
-                </div>
-                <div
-                    style="margin: 0 1rem 1rem; background:#eff6ff; border-left:4px solid #3b82f6; padding:0.8rem 1.2rem; border-radius:0 8px 8px 0; font-size:0.85rem; color:#1e40af;">
-                    <strong>📋 Nota Logística:</strong> Los choferes se registran en el módulo <strong>PERSONAL →
-                        Personal con Régimen Diferenciado</strong>. Esta sección muestra la tabla de asignación actual
-                    de choferes para visualización logística.
-                </div>
-
-                <div style="margin: 0 1rem;">
-                    <section class="form-container" style="margin-bottom: 1.5rem;">
-                        <h2>Registrar Chofer</h2>
-                        <form id="choferForm" class="grid-form"
-                            style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem; align-items: end;">
-
-                            <div class="form-group">
-                                <label for="cGrade">Grado / Rango</label>
-                                <select id="cGrade" required>
-                                    <option value="" disabled selected>Seleccione grado</option>
-                                    <option value="MARO">MARO (Marinero)</option>
-                                    <option value="CBOS">CBOS (Cabo Segundo)</option>
-                                    <option value="CBOP">CBOP (Cabo Primero)</option>
-                                    <option value="SGOS">SGOS (Sargento Segundo)</option>
-                                    <option value="SGOP">SGOP (Sargento Primero)</option>
-                                    <option value="SUBS">SUBS (Suboficial Segundo)</option>
-                                    <option value="SUBP">SUBP (Suboficial Primero)</option>
-                                    <option value="SUBM">SUBM (Suboficial Mayor)</option>
-                                    <option value="ALFG">ALFG (Alférez de Fragata)</option>
-                                    <option value="TNFG">TNFG (Teniente de Fragata)</option>
-                                    <option value="TNNV">TNNV (Teniente de Navío)</option>
-                                    <option value="CPCB">CPCB (Capitán de Corbeta)</option>
-                                    <option value="CPFG">CPFG (Capitán de Fragata)</option>
-                                    <option value="CPNV">CPNV (Capitán de Navío)</option>
-                                </select>
-                            </div>
-                            <div class="form-group">
-                                <label for="cEspecialidad">Especialidad</label>
-                                <input type="text" id="cEspecialidad" placeholder="Ej: Chofer" value="Chofer" required>
-                            </div>
-                            <div class="form-group">
-                                <label for="cName">Apellidos y Nombres</label>
-                                <input type="text" id="cName" placeholder="Ej: Pírez Juan" required>
-                            </div>
-                            <div class="form-group">
-                                <label for="cId">Identificación (Cédula)</label>
-                                <input type="text" id="cId" placeholder="1234567890" pattern="[0-9]{10}" required>
-                            </div>
-                            <div class="form-group">
-                                <label for="cUnit">Reparto</label>
-                                <input type="text" id="cUnit" list="repartosList" placeholder="Seleccione reparto"
-                                    required>
-                            </div>
-                            <div class="form-group">
-                                <label for="cContact">Nro Telefínico</label>
-                                <input type="text" id="cContact" placeholder="0999999999" required>
-                            </div>
-                            <div class="form-group">
-                                <label for="cGrupoDestino">Unidad Destino</label>
-                                <select id="cGrupoDestino" required>
-                                    <!-- Cargado dinámicamente -->
-                                </select>
-                            </div>
-                            <div class="form-group">
-                                <label for="cFuncion">Función</label>
-                                <input type="text" id="cFuncion" placeholder="Ej: CHOFER" value="CHOFER" required>
-                            </div>
-                            <div class="form-group">
-                                <label for="cGuardia">División</label>
-                                <select id="cGuardia" required>
-                                    <option value="BABOR" selected>BABOR</option>
-                                    <option value="ESTRIBOR">ESTRIBOR</option>
-                                </select>
-                            </div>
-
-                            <div class="form-actions" style="display: flex; align-items: flex-end; gap: 1rem;">
-                                <button type="submit" id="submitChoferBtn" class="btn-primary"
-                                    style="flex: 1;">Registrar
-                                    Chofer</button>
-                                <label class="btn-secondary"
-                                    style="flex: 1; color: #107c10; border-color: #107c10; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;">
-                                    📊 Importar Excel
-                                    <input type="file" id="importChoferExcel" accept=".xlsx, .xls"
-                                        style="display: none;" onchange="handleChoferExcelImport(event)">
-                                </label>
-                            </div>
-                        </form>
-                    </section>
-                    <div class="table-wrapper" style="min-height: 200px; overflow-x: auto;">
-                        <table id="tableChoferes" style="width:100%; border-collapse:collapse;">
-                            <thead>
-                                <tr>
-                                    <th>GRADO</th>
-                                    <th>ESPECIALIDAD</th>
-                                    <th>NOMBRE</th>
-                                    <th>CÉDULA</th>
-                                    <th>REPARTO</th>
-                                    <th>CONTACTO</th>
-                                    <th>UNIDAD DESTINO</th>
-                                    <th>FUNCIÓN</th>
-                                    <th>GRUPO</th>
-                                    <th>ACCIÓN</th>
-                                </tr>
-                            </thead>
-                            <tbody id="tableBodyChoferes"></tbody>
-                        </table>
-                    </div>
-                </div>
             </div>
 
             <!-- ===== PERSONAL CON RÉGIMEN DIFERENCIADO ===== -->
@@ -4637,6 +4563,24 @@ PARROQUIA/SECTOR: </textarea>
                         color: #166534;
                     }
                 </style>
+
+                <div class="personnel-tabs-bar" style="margin-bottom: 1.5rem;">
+                    <button class="personnel-tab-btn" data-target-view="personnelView"
+                        onclick="activatePersonnelGroupTab('personnelView', 'personnelView', this)">📋 Registro
+                        Personal</button>
+                    <button class="personnel-tab-btn" data-target-view="commandPostView"
+                        onclick="activatePersonnelGroupTab('commandPostView', 'personnelView', this)">👮 Registro de
+                        PM</button>
+                    <button class="personnel-tab-btn active" data-target-view="regimenDiferenciadoView"
+                        onclick="activatePersonnelGroupTab('regimenDiferenciadoView', 'personnelView', this)">🚗
+                        Choferes / Régimen Dif.</button>
+                    <button class="personnel-tab-btn" data-target-view="dailyCodescRegistryView"
+                        onclick="activatePersonnelGroupTab('dailyCodescRegistryView', 'personnelView', this)">📅 Diario
+                        CODESC</button>
+                    <button class="personnel-tab-btn" data-target-view="otherFunctionsView"
+                        onclick="activatePersonnelGroupTab('otherFunctionsView', 'personnelView', this)">⚙️ Otras
+                        Funciones</button>
+                </div>
 
                 <!-- HEADER -->
                 <div class="view-header"
@@ -5644,79 +5588,252 @@ PARROQUIA/SECTOR: </textarea>
 
             <!-- ===== REGISTRO DIARIO CODESC ===== -->
             <div id="dailyCodescRegistryView" class="fullscreen-view" style="display: none; padding: 1.5rem;">
-                <div class="view-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
-                    <div>
-                        <h2 class="outfit-font" style="margin: 0; color: var(--primary); font-weight: 800; font-size: 1.5rem;">📋 Registro Diario de Novedades (CODESC)</h2>
-                        <p style="margin: 4px 0 0 0; color: #64748b; font-size: 0.85rem;">Ingreso de personal por reparto y control de cumplimiento (Límite diario: 14:00 OMAI)</p>
-                    </div>
-                    <div class="view-actions" style="display: flex; gap: 0.5rem;">
-                        <button class="btn-export excel" onclick="exportCodescDailyRegistryExcel()" style="background: #10b981; color: white; border: none; padding: 8px 16px; border-radius: 8px; font-weight: 700; font-size: 0.85rem; display: flex; align-items: center; gap: 6px; cursor: pointer;">
-                            📥 Exportar Excel
-                        </button>
-                    </div>
+                <div class="personnel-tabs-bar" style="margin-bottom: 1.5rem;">
+                    <button class="personnel-tab-btn" data-target-view="personnelView"
+                        onclick="activatePersonnelGroupTab('personnelView', 'personnelView', this)">📋 Registro
+                        Personal</button>
+                    <button class="personnel-tab-btn" data-target-view="commandPostView"
+                        onclick="activatePersonnelGroupTab('commandPostView', 'personnelView', this)">👮 Registro de
+                        PM</button>
+                    <button class="personnel-tab-btn" data-target-view="regimenDiferenciadoView"
+                        onclick="activatePersonnelGroupTab('regimenDiferenciadoView', 'personnelView', this)">🚗
+                        Choferes / Régimen Dif.</button>
+                    <button class="personnel-tab-btn active" data-target-view="dailyCodescRegistryView"
+                        onclick="activatePersonnelGroupTab('dailyCodescRegistryView', 'personnelView', this)">📅 Diario
+                        CODESC</button>
+                    <button class="personnel-tab-btn" data-target-view="otherFunctionsView"
+                        onclick="activatePersonnelGroupTab('otherFunctionsView', 'personnelView', this)">⚙️ Otras
+                        Funciones</button>
                 </div>
+                <!-- Animación de pulso para advertencia de no registro -->
+                <style>
+                    @keyframes pulse-red-border {
+                        0% {
+                            border-color: #fca5a5;
+                            box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4);
+                        }
 
-                <div class="daily-codesc-layout" style="display: grid; grid-template-columns: 350px 1fr; gap: 1.5rem; align-items: start;">
-                    <!-- Columna Formulario -->
-                    <div class="card" style="background: white; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); border: 1px solid #e2e8f0; padding: 1.5rem;">
-                        <h3 style="margin-top: 0; margin-bottom: 1.25rem; font-size: 1.1rem; color: #1e293b; border-bottom: 2px solid #f1f5f9; padding-bottom: 0.5rem; display: flex; align-items: center; gap: 8px;">
-                            <span>✍️</span> Nuevo Registro
+                        50% {
+                            border-color: #ef4444;
+                            box-shadow: 0 0 0 6px rgba(239, 68, 68, 0);
+                        }
+
+                        100% {
+                            border-color: #fca5a5;
+                            box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+                        }
+                    }
+
+                    .pulse-border-red {
+                        animation: pulse-red-border 2s infinite;
+                    }
+                </style>
+
+                <div class="daily-codesc-layout" style="display: flex; flex-direction: column; gap: 1.5rem;">
+                    <!-- Panel Superior: Control de Cumplimiento y Requeridos -->
+                    <div style="display: grid; grid-template-columns: 1fr 380px; gap: 1.5rem; align-items: start;">
+                        <!-- Control de Cumplimiento -->
+                        <div class="card"
+                            style="background: white; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); border: 1px solid #e2e8f0; padding: 1.5rem; min-height: 200px;">
+                            <h3
+                                style="margin: 0; font-size: 1.1rem; color: #1e293b; display: flex; align-items: center; gap: 8px;">
+                                <span>🚨</span> Control de Cumplimiento Diario (Límite: 14:00 OMAI)
+                            </h3>
+                            <div id="codescComplianceContainer" style="margin-top: 1rem;">
+                                <!-- Cargado dinámicamente -->
+                            </div>
+                        </div>
+
+                        <!-- Cuadro Informativo -->
+                        <div class="card"
+                            style="background: white; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); border: 1px solid #e2e8f0; padding: 1.25rem; min-height: 200px;">
+                            <h3
+                                style="margin-top: 0; margin-bottom: 1rem; font-size: 1rem; color: #1e293b; border-bottom: 2px solid #f1f5f9; padding-bottom: 0.5rem; display: flex; align-items: center; gap: 8px;">
+                                <span>ℹ️</span> Personal Requerido por Buque
+                            </h3>
+                            <div id="codescRequiredPersonnelContainer"
+                                style="font-size: 0.8rem; display: flex; flex-direction: column; gap: 8px;">
+                                <!-- Cargado dinámicamente -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Panel Central: Nuevo Registro (Formulario y Tabla de Personal) -->
+                    <div class="card"
+                        style="background: white; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); border: 1px solid #e2e8f0; padding: 1.5rem;">
+                        <h3
+                            style="margin-top: 0; margin-bottom: 1.25rem; font-size: 1.15rem; color: #1e293b; border-bottom: 2px solid #f1f5f9; padding-bottom: 0.5rem; display: flex; align-items: center; gap: 8px;">
+                            <span>✍️</span> Nuevo Registro Diario
                         </h3>
-                        <form id="codescDailyForm" onsubmit="saveCodescDailyRecord(event)" style="display: flex; flex-direction: column; gap: 1rem;">
+                        <form id="codescDailyForm" onsubmit="saveCodescDailyRecord(event)">
                             <input type="hidden" id="codescDailyEditId" value="">
-                            
-                            <div>
-                                <label style="display: block; font-size: 0.75rem; font-weight: 700; color: #475569; margin-bottom: 4px;">Día OMAI:</label>
-                                <input type="date" id="codescDailyOmaiDate" required style="width: 100%; padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.85rem; font-weight: 600; color: #1e293b; background: #f8fafc;">
-                                <span id="codescDailyOmaiDateCalculated" style="display: block; font-size: 0.65rem; color: #64748b; margin-top: 4px; font-style: italic;">Calculado de 08:00 a 08:00 del día siguiente</span>
+
+                            <!-- Inputs principales del formulario -->
+                            <div style="margin-bottom: 1.5rem; max-width: 300px;">
+                                <label
+                                    style="display: block; font-size: 0.75rem; font-weight: 700; color: #475569; margin-bottom: 4px;">Día
+                                    OMAI:</label>
+                                <input type="date" id="codescDailyOmaiDate" required
+                                    onchange="window.renderCodescCompliance()"
+                                    style="width: 100%; padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.85rem; font-weight: 600; color: #1e293b; background: #f8fafc;">
+                                <span id="codescDailyOmaiDateCalculated"
+                                    style="display: block; font-size: 0.65rem; color: #64748b; margin-top: 4px; font-style: italic;"></span>
                             </div>
 
-                            <div>
-                                <label style="display: block; font-size: 0.75rem; font-weight: 700; color: #475569; margin-bottom: 4px;">Reparto / Unidad:</label>
-                                <select id="codescDailyUnit" required onchange="autoFillCodescDailyPersonnel()" style="width: 100%; padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.85rem; font-weight: 600; color: #1e293b;">
-                                    <option value="" disabled selected>-- Seleccionar Unidad --</option>
-                                </select>
+                            <!-- Tabla del Personal del Buque Seleccionado -->
+                            <div
+                                style="background: #f8fafc; padding: 1.25rem; border-radius: 8px; border: 1px solid #e2e8f0; margin-bottom: 1.5rem;">
+                                <h4
+                                    style="margin-top: 0; margin-bottom: 0.75rem; font-size: 0.95rem; color: #334155; font-weight: 800;">
+                                    👨‍✈️ Registro unidades CODESC</h4>
+                                <div class="table-wrapper"
+                                    style="overflow-x: auto; max-height: 400px; background: white; border-radius: 6px; border: 1px solid #cbd5e1;">
+                                    <table
+                                        style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.82rem;">
+                                        <thead>
+                                            <tr
+                                                style="background: #f1f5f9; color: #475569; border-bottom: 1.5px solid #cbd5e1; font-weight: 700;">
+                                                <th style="padding: 10px 12px; width: 110px;">GRADO</th>
+                                                <th style="padding: 10px 12px; width: 110px;">ESPECIALIDAD</th>
+                                                <th style="padding: 10px 12px; min-width: 180px;">NOMBRE</th>
+                                                <th style="padding: 10px 12px; width: 110px;">CÉDULA</th>
+                                                <th style="padding: 10px 12px; width: 150px;">REPARTO</th>
+                                                <th style="padding: 10px 12px; width: 110px;">CONTACTO</th>
+                                                <th style="padding: 10px 12px; width: 150px;">UNIDAD DESTINO</th>
+                                                <th style="padding: 10px 12px; width: 150px;">FUNCIÓN</th>
+                                                <th style="padding: 10px 12px; width: 110px;">GRUPO</th>
+                                                <th style="padding: 10px 12px; width: 50px; text-align: center;">ACCIÓN
+                                                </th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="codescDailyFormDistributionBody">
+                                            <tr>
+                                                <td colspan="10"
+                                                    style="text-align: center; padding: 2rem; color: #94a3b8; font-style: italic;">
+                                                    Seleccione una unidad/reparto para cargar la dotación de personal, o
+                                                    añada personal manualmente.
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                                <div
+                                    style="margin-top: 10px; display: flex; justify-content: flex-start; gap: 10px; flex-wrap: wrap;">
+                                    <button type="button" class="btn-secondary"
+                                        onclick="window.addCodescDailyFormPersonnelRow('', '', '', '', '', '', '', '', '')"
+                                        style="font-size: 0.8rem; padding: 6px 12px; border-radius: 6px; font-weight: 700; border: 1px solid #cbd5e1; background: white; cursor: pointer; color: #475569; display: flex; align-items: center; gap: 4px;">
+                                        <span>➕</span> Añadir Personal
+                                    </button>
+                                    <button type="button" class="btn-accent"
+                                        onclick="window.generateDailyCodescDistribution()"
+                                        style="font-size: 0.8rem; padding: 6px 12px; border-radius: 6px; font-weight: 700; background: linear-gradient(135deg, #4f46e5, #3730a3); color: white; border: none; cursor: pointer; display: flex; align-items: center; gap: 4px; box-shadow: 0 2px 4px rgba(79, 70, 229, 0.2);">
+                                        <span>⚖️</span> Generar Distribución (FOXTROT / GOLF)
+                                    </button>
+                                </div>
+
+                                <!-- Contenedor de grupos FOXTROT y GOLF -->
+                                <div id="codescDailyDistributionGroupsContainer"
+                                    style="display: none; margin-top: 1.5rem; gap: 1.5rem;">
+                                    <!-- Tarjeta FOXTROT -->
+                                    <div class="card"
+                                        style="flex: 1; background: #f8fafc; border: 1.5px dashed #3b82f6; border-radius: 10px; padding: 1.25rem; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">
+                                        <h4
+                                            style="margin: 0 0 0.75rem; color: #1e3a8a; display: flex; justify-content: space-between; align-items: center; font-size: 0.88rem; font-weight: 800;">
+                                            <span>🦊 GRUPO FOXTROT</span>
+                                            <span id="countFoxtrot"
+                                                style="font-size: 0.7rem; background: #3b82f6; color: white; padding: 2px 8px; border-radius: 10px; font-weight: 700;">0
+                                                pax</span>
+                                        </h4>
+                                        <ul id="listFoxtrot"
+                                            style="list-style: none; padding: 0; margin: 0; font-size: 0.78rem; display: flex; flex-direction: column; gap: 6px;">
+                                            <!-- Integrantes se insertan aquí -->
+                                        </ul>
+                                    </div>
+                                    <!-- Tarjeta GOLF -->
+                                    <div class="card"
+                                        style="flex: 1; background: #f8fafc; border: 1.5px dashed #10b981; border-radius: 10px; padding: 1.25rem; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">
+                                        <h4
+                                            style="margin: 0 0 0.75rem; color: #065f46; display: flex; justify-content: space-between; align-items: center; font-size: 0.88rem; font-weight: 800;">
+                                            <span>⛳ GRUPO GOLF</span>
+                                            <span id="countGolf"
+                                                style="font-size: 0.7rem; background: #10b981; color: white; padding: 2px 8px; border-radius: 10px; font-weight: 700;">0
+                                                pax</span>
+                                        </h4>
+                                        <ul id="listGolf"
+                                            style="list-style: none; padding: 0; margin: 0; font-size: 0.78rem; display: flex; flex-direction: column; gap: 6px;">
+                                            <!-- Integrantes se insertan aquí -->
+                                        </ul>
+                                    </div>
+                                </div>
                             </div>
 
-                            <div style="background: #f8fafc; padding: 12px; border-radius: 8px; border: 1px solid #e2e8f0;">
-                                <label style="display: block; font-size: 0.75rem; font-weight: 700; color: #475569; margin-bottom: 6px;">Distribución / Detalle de Puestos:</label>
-                                <table style="width: 100%; font-size: 0.8rem; margin-bottom: 8px; border-collapse: collapse;">
-                                    <thead>
-                                        <tr style="color: #64748b; font-weight: 700; text-align: left; border-bottom: 1px solid #cbd5e1;">
-                                            <th style="padding-bottom: 4px;">Puesto / Función</th>
-                                            <th style="padding-bottom: 4px; width: 80px; text-align: center;">Personal</th>
-                                            <th style="padding-bottom: 4px; width: 30px;"></th>
-                                        </tr>
-                                    </thead>
-                                    <tbody id="codescDailyFormDistributionBody">
-                                        <!-- Filas dinámicas (Concepto: Cantidad) -->
-                                    </tbody>
-                                </table>
-                                <button type="button" class="btn-secondary btn-small" onclick="window.addCodescDailyFormDistributionRow('', 0)" style="font-size: 0.7rem; padding: 4px 8px; border-radius: 4px; border: 1px solid #cbd5e1; background: white; cursor: pointer; font-weight: 700; color: #475569; display: block; width: 100%; text-align: center;">
-                                    + Añadir Fila
-                                </button>
-                            </div>
-
-                            <div>
-                                <label style="display: block; font-size: 0.75rem; font-weight: 700; color: #475569; margin-bottom: 4px;">Novedades / Observaciones:</label>
-                                <textarea id="codescDailyNovedades" rows="4" placeholder="Ingresa novedades importantes..." style="width: 100%; padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.85rem; font-family: inherit; resize: vertical;"></textarea>
-                            </div>
-
-                            <div style="display: flex; gap: 8px; margin-top: 0.5rem;">
-                                <button type="submit" class="btn-primary" style="flex: 1; padding: 10px; border-radius: 8px; font-weight: 700; font-size: 0.85rem; border: none; background: #3b82f6; color: white; cursor: pointer;">💾 Guardar Registro</button>
-                                <button type="button" onclick="clearCodescDailyForm()" class="btn-secondary" style="padding: 10px; border-radius: 8px; font-weight: 700; font-size: 0.85rem; border: 1px solid #cbd5e1; background: #f8fafc; color: #475569; cursor: pointer;">Limpiar</button>
+                            <!-- Botones -->
+                            <div style="display: flex; gap: 12px; justify-content: flex-end;">
+                                <button type="button" onclick="clearCodescDailyForm()" class="btn-secondary"
+                                    style="padding: 10px 24px; border-radius: 8px; font-weight: 700; font-size: 0.85rem; border: 1px solid #cbd5e1; background: #f8fafc; color: #475569; cursor: pointer;">Limpiar
+                                    Formulario</button>
+                                <button type="submit" class="btn-primary"
+                                    style="padding: 10px 32px; border-radius: 8px; font-weight: 700; font-size: 0.85rem; border: none; background: #3b82f6; color: white; cursor: pointer;">💾
+                                    Guardar Registro Diario</button>
                             </div>
                         </form>
                     </div>
 
-                    <!-- Columna Tabla Histórica -->
-                    <div class="card" style="background: white; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); border: 1px solid #e2e8f0; padding: 1.5rem; display: flex; flex-direction: column; gap: 1rem;">
-                        <div style="display: flex; justify-content: space-between; align-items: center;">
-                            <h3 style="margin: 0; font-size: 1.1rem; color: #1e293b; display: flex; align-items: center; gap: 8px;">
-                                <span>📅</span> Historial de Registros
+                    <!-- Panel Intermedio: Tabla Nominativa de Personal -->
+                    <div class="card"
+                        style="background: white; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); border: 1px solid #e2e8f0; padding: 1.5rem; display: flex; flex-direction: column; gap: 1rem;">
+                        <div
+                            style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+                            <h3
+                                style="margin: 0; font-size: 1.1rem; color: #1e293b; display: flex; align-items: center; gap: 8px;">
+                                <span>👨‍✈️</span> Tabla de Registro de Personal CODESC
                             </h3>
                             <div style="display: flex; gap: 8px; align-items: center;">
-                                <select id="filterCodescDailyMonth" onchange="renderCodescDailyRegistryTable()" style="padding: 4px 8px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.85rem; font-weight: 600; color: #475569;">
+                                <button onclick="exportCodescPersonnelPDF()" class="btn-export pdf"
+                                    style="font-size: 0.8rem; padding: 6px 12px; display: flex; align-items: center; gap: 4px;">📄
+                                    Exportar PDF</button>
+                                <button onclick="exportCodescPersonnelExcel()" class="btn-export excel"
+                                    style="font-size: 0.8rem; padding: 6px 12px; display: flex; align-items: center; gap: 4px;">📊
+                                    Exportar Excel</button>
+                            </div>
+                        </div>
+
+                        <div class="table-wrapper"
+                            style="overflow-x: auto; max-height: 400px; background: white; border-radius: 6px; border: 1px solid #cbd5e1;">
+                            <table
+                                style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.82rem;">
+                                <thead>
+                                    <tr
+                                        style="background: #f1f5f9; color: #475569; border-bottom: 1.5px solid #cbd5e1; font-weight: 700;">
+                                        <th style="padding: 10px 12px;">DÍA OMAI</th>
+                                        <th style="padding: 10px 12px;">GRADO</th>
+                                        <th style="padding: 10px 12px;">ESPECIALIDAD</th>
+                                        <th style="padding: 10px 12px;">NOMBRE</th>
+                                        <th style="padding: 10px 12px;">CÉDULA</th>
+                                        <th style="padding: 10px 12px;">REPARTO</th>
+                                        <th style="padding: 10px 12px;">FUNCIÓN</th>
+                                        <th style="padding: 10px 12px;">GRUPO</th>
+                                        <th style="padding: 10px 12px; text-align: center;">ACCIÓN</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="codescPersonnelRegistryTableBody">
+                                    <!-- Cargado dinámicamente -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Panel Inferior: Historial de Registros -->
+                    <div class="card"
+                        style="background: white; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); border: 1px solid #e2e8f0; padding: 1.5rem; display: flex; flex-direction: column; gap: 1rem;">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <h3
+                                style="margin: 0; font-size: 1.1rem; color: #1e293b; display: flex; align-items: center; gap: 8px;">
+                                <span>📅</span> Historial de Registros Guardados
+                            </h3>
+                            <div style="display: flex; gap: 8px; align-items: center;">
+                                <select id="filterCodescDailyMonth" onchange="renderCodescDailyRegistryTable()"
+                                    style="padding: 4px 8px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.85rem; font-weight: 600; color: #475569;">
                                     <option value="ALL">Todos los Meses</option>
                                     <option value="01">Enero</option>
                                     <option value="02">Febrero</option>
@@ -5735,16 +5852,18 @@ PARROQUIA/SECTOR: </textarea>
                         </div>
 
                         <div class="table-wrapper" style="overflow-x: auto; max-height: 500px;">
-                            <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.85rem;">
+                            <table
+                                style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.85rem;">
                                 <thead>
-                                    <tr style="border-bottom: 2px solid #cbd5e1; color: #475569; font-weight: 700; background: #f8fafc;">
-                                        <th style="padding: 10px 12px;">Día OMAI</th>
-                                        <th style="padding: 10px 12px;">Reparto</th>
-                                        <th style="padding: 10px 12px; text-align: center;">Total</th>
+                                    <tr
+                                        style="border-bottom: 2px solid #cbd5e1; color: #475569; font-weight: 700; background: #f8fafc;">
+                                        <th style="padding: 10px 12px; width: 100px;">Día OMAI</th>
+                                        <th style="padding: 10px 12px; width: 150px;">Reparto</th>
+                                        <th style="padding: 10px 12px; text-align: center; width: 80px;">Total</th>
                                         <th style="padding: 10px 12px;">Distribución / Detalle</th>
                                         <th style="padding: 10px 12px;">Novedades</th>
-                                        <th style="padding: 10px 12px;">Hora Registro</th>
-                                        <th style="padding: 10px 12px; text-align: center;">Estado</th>
+                                        <th style="padding: 10px 12px; width: 130px;">Hora Registro</th>
+                                        <th style="padding: 10px 12px; text-align: center; width: 100px;">Estado</th>
                                         <th style="padding: 10px 12px; text-align: center; width: 80px;">Acciones</th>
                                     </tr>
                                 </thead>
@@ -5759,71 +5878,203 @@ PARROQUIA/SECTOR: </textarea>
 
             <!-- ===== DISTRIBUCION POR PUESTOS ===== -->
             <div id="postDistributionView" class="fullscreen-view" style="display: none; padding: 1.5rem;">
+                <div class="personnel-tabs-bar" style="margin-bottom: 1.5rem;">
+                    <button class="personnel-tab-btn" data-target-view="distributionView"
+                        onclick="activatePersonnelGroupTab('distributionView', 'distributionView', this)">📋
+                        Distribución de Personal</button>
+                    <button class="personnel-tab-btn active" data-target-view="postDistributionView"
+                        onclick="activatePersonnelGroupTab('postDistributionView', 'distributionView', this)">🛡️
+                        Distribución por Puestos</button>
+                </div>
                 <div class="view-header">
-                    <h2 class="outfit-font">Distribución de Personal por Puestos</h2>
+                    <h2 class="outfit-font">Distribución de personal por puestos</h2>
                     <div class="view-actions">
                         <button class="btn-primary" onclick="generatePostAssignments()">⚖️ Generar
                             Asignación</button>
                         <button class="btn-export pdf" onclick="exportPostAssignmentsPDF()"> Exportar PDF</button>
-                        <button class="btn-secondary" onclick="resetPostConfig()"> Resetear</button>
+                        <button class="btn-secondary" onclick="resetPostConfig(true)"> Resetear</button>
                     </div>
                 </div>
 
-                <div class="dist-layout" style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem;">
+                <!-- Configuración de Turnos y Rotación Automática (Ancho Completo) -->
+                <section class="form-section"
+                    style="background: #1e293b; color: #f8fafc; border-radius: 12px; padding: 1.5rem; border: 1px solid rgba(255,255,255,0.08); margin-bottom: 2rem;">
+                    <h3
+                        style="color: #60a5fa; margin-bottom: 1rem; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 0.5rem; display: flex; align-items: center; gap: 10px;">
+                        <span style="font-size: 1.2rem;">⚙️</span> Configuración de Turnos (Ciclo de Guardia)
+                    </h3>
+
+                    <!-- Inputs de Turno -->
+                    <div
+                        style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-bottom: 1.5rem;">
+                        <!-- T1 -->
+                        <div
+                            style="background: rgba(255,255,255,0.03); padding: 8px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05); display: flex; flex-direction: column; gap: 5px;">
+                            <label
+                                style="font-size: 0.72rem; font-weight: 800; color: #93c5fd; display: flex; align-items: center; gap: 4px;">
+                                <input type="checkbox" id="shiftT1Active" checked
+                                    onchange="window.renderRotationTable()"> TURNO 1
+                            </label>
+                            <div style="display: flex; gap: 4px;">
+                                <input type="text" id="shiftT1Start" value="08:00"
+                                    style="width: 50%; background: #0f172a; border: 1px solid rgba(255,255,255,0.1); color: white; padding: 3px; font-size: 0.75rem; text-align: center; border-radius: 4px;">
+                                <input type="text" id="shiftT1End" value="16:00"
+                                    style="width: 50%; background: #0f172a; border: 1px solid rgba(255,255,255,0.1); color: white; padding: 3px; font-size: 0.75rem; text-align: center; border-radius: 4px;">
+                            </div>
+                        </div>
+                        <!-- T2 -->
+                        <div
+                            style="background: rgba(255,255,255,0.03); padding: 8px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05); display: flex; flex-direction: column; gap: 5px;">
+                            <label
+                                style="font-size: 0.72rem; font-weight: 800; color: #6ee7b7; display: flex; align-items: center; gap: 4px;">
+                                <input type="checkbox" id="shiftT2Active" checked
+                                    onchange="window.renderRotationTable()"> TURNO 2
+                            </label>
+                            <div style="display: flex; gap: 4px;">
+                                <input type="text" id="shiftT2Start" value="16:00"
+                                    style="width: 50%; background: #0f172a; border: 1px solid rgba(255,255,255,0.1); color: white; padding: 3px; font-size: 0.75rem; text-align: center; border-radius: 4px;">
+                                <input type="text" id="shiftT2End" value="00:00"
+                                    style="width: 50%; background: #0f172a; border: 1px solid rgba(255,255,255,0.1); color: white; padding: 3px; font-size: 0.75rem; text-align: center; border-radius: 4px;">
+                            </div>
+                        </div>
+                        <!-- T3 -->
+                        <div
+                            style="background: rgba(255,255,255,0.03); padding: 8px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05); display: flex; flex-direction: column; gap: 5px;">
+                            <label
+                                style="font-size: 0.72rem; font-weight: 800; color: #fcd34d; display: flex; align-items: center; gap: 4px;">
+                                <input type="checkbox" id="shiftT3Active" checked
+                                    onchange="window.renderRotationTable()"> TURNO 3
+                            </label>
+                            <div style="display: flex; gap: 4px;">
+                                <input type="text" id="shiftT3Start" value="00:00"
+                                    style="width: 50%; background: #0f172a; border: 1px solid rgba(255,255,255,0.1); color: white; padding: 3px; font-size: 0.75rem; text-align: center; border-radius: 4px;">
+                                <input type="text" id="shiftT3End" value="08:00"
+                                    style="width: 50%; background: #0f172a; border: 1px solid rgba(255,255,255,0.1); color: white; padding: 3px; font-size: 0.75rem; text-align: center; border-radius: 4px;">
+                            </div>
+                        </div>
+                        <!-- T4 -->
+                        <div
+                            style="background: rgba(255,255,255,0.03); padding: 8px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05); display: flex; flex-direction: column; gap: 5px;">
+                            <label
+                                style="font-size: 0.72rem; font-weight: 800; color: #c084fc; display: flex; align-items: center; gap: 4px;">
+                                <input type="checkbox" id="shiftT4Active" onchange="window.renderRotationTable()"> TURNO
+                                4
+                            </label>
+                            <div style="display: flex; gap: 4px;">
+                                <input type="text" id="shiftT4Start" value="12:00"
+                                    style="width: 50%; background: #0f172a; border: 1px solid rgba(255,255,255,0.1); color: white; padding: 3px; font-size: 0.75rem; text-align: center; border-radius: 4px;">
+                                <input type="text" id="shiftT4End" value="18:00"
+                                    style="width: 50%; background: #0f172a; border: 1px solid rgba(255,255,255,0.1); color: white; padding: 3px; font-size: 0.75rem; text-align: center; border-radius: 4px;">
+                            </div>
+                        </div>
+                        <!-- T5 -->
+                        <div
+                            style="background: rgba(255,255,255,0.03); padding: 8px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05); display: flex; flex-direction: column; gap: 5px;">
+                            <label
+                                style="font-size: 0.72rem; font-weight: 800; color: #f472b6; display: flex; align-items: center; gap: 4px;">
+                                <input type="checkbox" id="shiftT5Active" onchange="window.renderRotationTable()"> TURNO
+                                5
+                            </label>
+                            <div style="display: flex; gap: 4px;">
+                                <input type="text" id="shiftT5Start" value="18:00"
+                                    style="width: 50%; background: #0f172a; border: 1px solid rgba(255,255,255,0.1); color: white; padding: 3px; font-size: 0.75rem; text-align: center; border-radius: 4px;">
+                                <input type="text" id="shiftT5End" value="00:00"
+                                    style="width: 50%; background: #0f172a; border: 1px solid rgba(255,255,255,0.1); color: white; padding: 3px; font-size: 0.75rem; text-align: center; border-radius: 4px;">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Ciclo y Acciones -->
+                    <div
+                        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; background: rgba(0,0,0,0.2); padding: 8px 12px; border-radius: 8px;">
+                        <div style="display: flex; flex-direction: column; gap: 4px;">
+                            <span
+                                style="font-size: 0.65rem; color: #94a3b8; font-weight: 700; text-transform: uppercase;">Ciclo
+                                de Guardia:</span>
+                            <div id="cycleLabelsContainer"
+                                style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;"></div>
+                        </div>
+                        <div style="display: flex; gap: 8px;">
+                            <button type="button" class="btn-secondary btn-small" onclick="window.resetShiftTimes()"
+                                style="background: rgba(255,255,255,0.08); color: white; border: none; padding: 6px 12px; font-size: 0.72rem; font-weight: 700;">Restablecer</button>
+                            <button type="button" class="btn-primary btn-small" onclick="window.saveShiftTimes()"
+                                style="background: #3b82f6; border: none; padding: 6px 12px; font-size: 0.72rem; font-weight: 700;">Guardar
+                                Horarios</button>
+                        </div>
+                    </div>
+                    <div id="shiftTimesSaveStatus"
+                        style="font-size: 0.75rem; text-align: right; margin-top: -12px; margin-bottom: 10px; display: none;">
+                    </div>
+
+                    <!-- Tabla Rotación Automática -->
+                    <h4 onclick="toggleRotationDemo()"
+                        style="color: #60a5fa; font-size: 0.85rem; margin-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 4px; cursor: pointer; display: flex; justify-content: space-between; align-items: center;">
+                        <span>📅 Rotación de Guardia Automática (Demostración de 6 Días)</span>
+                        <span id="rotationDemoToggleBtn" style="font-size: 0.7rem; color: #94a3b8; font-weight: 500;">[
+                            Ocultar ]</span>
+                    </h4>
+                    <div id="rotationDemoWrapper" class="table-wrapper thin"
+                        style="background: transparent; border: 1px solid rgba(255,255,255,0.08); overflow-x: auto;">
+                        <table style="font-size: 0.75rem; color: #cbd5e1; width: 100%; border-collapse: collapse;">
+                            <thead>
+                                <tr style="background: rgba(255,255,255,0.05); color: #94a3b8;">
+                                    <th style="padding: 6px 10px; text-align: left;">FUNCIÓN</th>
+                                    <th style="padding: 6px 4px; text-align: center; width: 11%;">DÍA 1</th>
+                                    <th style="padding: 6px 4px; text-align: center; width: 11%;">DÍA 2</th>
+                                    <th style="padding: 6px 4px; text-align: center; width: 11%;">DÍA 3</th>
+                                    <th style="padding: 6px 4px; text-align: center; width: 11%;">DÍA 4</th>
+                                    <th style="padding: 6px 4px; text-align: center; width: 11%;">DÍA 5</th>
+                                    <th style="padding: 6px 4px; text-align: center; width: 11%;">DÍA 6</th>
+                                    <th style="padding: 6px 10px; text-align: center; width: 12%;">CICLO</th>
+                                </tr>
+                            </thead>
+                            <tbody id="rotationDemoTableBody">
+                                <!-- Generado dinámicamente -->
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <div class="dist-layout"
+                    style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; align-items: start;">
                     <!-- Columna Izquierda: Configuración -->
                     <div class="config-column" style="display: flex; flex-direction: column; gap: 2rem;">
-                        <!-- Puestos Fijos -->
+                        <!-- Puestos para Operación -->
                         <section class="form-section">
                             <h3
                                 style="color: var(--primary); margin-bottom: 1rem; border-bottom: 2px solid #e2e8f0; padding-bottom: 0.5rem; display: flex; align-items: center; gap: 10px;">
-                                <span style="font-size: 1.2rem;"></span> Puestos Fijos
+                                <span style="font-size: 1.2rem;">🛡️</span> Puestos para Operación
                             </h3>
-                            <div class="table-wrapper thin" style="margin-bottom: 1rem;">
-                                <table style="font-size: 0.85rem;">
+                            <div class="table-wrapper thin"
+                                style="margin-bottom: 1rem; width: 100%; overflow: visible !important;">
+                                <table style="font-size: 0.8rem; width: 100%; border-collapse: collapse;">
                                     <thead>
                                         <tr>
-                                            <th>Puesto</th>
-                                            <th>Horario</th>
-                                            <th style="width: 150px;">Unidad/Reparto</th>
-                                            <th style="width: 200px;">Función Seleccionada</th>
-                                            <th style="width: 40px;"></th>
+                                            <th
+                                                style="width: 28%; min-width: 120px; text-align: left; padding: 0.75rem 10px;">
+                                                Puesto</th>
+                                            <th
+                                                style="width: 18%; min-width: 80px; text-align: center; padding: 0.75rem 4px;">
+                                                Horario</th>
+                                            <th
+                                                style="width: 22%; min-width: 100px; text-align: center; padding: 0.75rem 4px;">
+                                                Unidad/Reparto</th>
+                                            <th
+                                                style="width: 26%; min-width: 150px; text-align: center; padding: 0.75rem 4px;">
+                                                Función Asignada</th>
+                                            <th
+                                                style="width: 6%; min-width: 40px; text-align: center; padding: 0.75rem 4px;">
+                                            </th>
                                         </tr>
                                     </thead>
-                                    <tbody id="fixedPostsBody">
-                                        <!-- Pre-poblado para CODESC si es necesario -->
+                                    <tbody id="operationPostsBody">
+                                        <!-- Filas dinámicas -->
                                     </tbody>
                                 </table>
                             </div>
                             <button type="button" class="btn-secondary btn-small"
-                                onclick="addPostRow('fixedPostsBody')">+
+                                onclick="addPostRow('operationPostsBody')">+
                                 Añadir Puesto</button>
-                        </section>
-
-                        <!-- Puestos de Apoyo -->
-                        <section class="form-section">
-                            <h3
-                                style="color: var(--secondary); margin-bottom: 1rem; border-bottom: 2px solid #e2e8f0; padding-bottom: 0.5rem; display: flex; align-items: center; gap: 10px;">
-                                <span style="font-size: 1.2rem;"></span> Puestos de Apoyo
-                            </h3>
-                            <div class="table-wrapper thin" style="margin-bottom: 1rem;">
-                                <table style="font-size: 0.85rem;">
-                                    <thead>
-                                        <tr>
-                                            <th>Puesto</th>
-                                            <th>Horario</th>
-                                            <th style="width: 150px;">Unidad/Reparto</th>
-                                            <th style="width: 200px;">Función Seleccionada</th>
-                                            <th style="width: 40px;"></th>
-                                        </tr>
-                                    </thead>
-                                    <tbody id="supportPostsBody">
-                                        <!-- Filas dinímicas -->
-                                    </tbody>
-                                </table>
-                            </div>
-                            <button type="button" class="btn-secondary btn-small"
-                                onclick="addPostRow('supportPostsBody')">+
-                                Añadir Apoyo</button>
                         </section>
                     </div>
 
@@ -5922,26 +6173,37 @@ PARROQUIA/SECTOR: </textarea>
                     </div>
                 </div>
             </div>
-            <!-- ===== ORDEN DE PATRULLA GT ECHO ===== -->
-            <div id="ordpatEchoView" class="fullscreen-view" style="display:none;">
+            <!-- ===== ORDEN DE PATRULLA UNIFICADA ===== -->
+            <div id="ordpatUnifiedView" class="fullscreen-view" style="display:none;">
                 <div class="view-header">
-                    <h2 class="outfit-font">ORDEN DE PATRULLA GT ECHO</h2>
-                    <div class="view-actions">
-                        <button class="btn-secondary" onclick="resetTemplateForm('ordpatEchoContent')">
+                    <h2 class="outfit-font">📋 ORDEN DE PATRULLA</h2>
+                    <div class="view-actions" style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                        <!-- Selector de GT dinámico -->
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <label
+                                style="font-size: 0.72rem; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; white-space: nowrap;">Grupo
+                                de Tarea:</label>
+                            <select id="ordpatUnifiedGTSelector" onchange="loadLastPatrolOrderForGT(this.value)"
+                                style="background: #1e293b; color: #f8fafc; border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; padding: 6px 14px; font-size: 0.82rem; font-weight: 700; outline: none; cursor: pointer; min-width: 200px;">
+                                <option value="">-- Seleccionar GT --</option>
+                            </select>
+                        </div>
+                        <button class="btn-secondary" onclick="resetUnifiedPatrolForm()">
                             <span class="icon"></span> Nueva Orden
                         </button>
-                        <button class="btn-accent" onclick="saveTemplatePatrolOrder('ECHO', 'ordpatEchoContent')">
+                        <button class="btn-accent" onclick="saveUnifiedPatrolOrder()">
                             <span class="icon"></span> Guardar Orden
                         </button>
-                        <button class="btn-primary" onclick="printPatrolOrder('ordpatEchoContent')">
-                            <span class="icon"></span> Imprimir / Exportar PDF
+                        <button class="btn-primary" onclick="printPatrolOrder('ordpatUnifiedContent')">
+                            <span class="icon"></span> Imprimir / PDF
                         </button>
                     </div>
                 </div>
-                <!-- CINTA DE FORMATO ESTILO WORD - GT ECHO -->
-                <div class="word-ribbon" id="wordRibbon_echo">
+
+                <!-- CINTA DE FORMATO ESTILO WORD -->
+                <div class="word-ribbon" id="wordRibbon_unified">
                     <div class="ribbon-group">
-                        <select class="ribbon-select" title="Tamaío de fuente"
+                        <select class="ribbon-select" title="Tamaño de fuente"
                             onchange="applyOrdpatFontSize(this.value)">
                             <option value="7pt">7</option>
                             <option value="8pt" selected>8</option>
@@ -5977,11 +6239,10 @@ PARROQUIA/SECTOR: </textarea>
                     </div>
                     <div class="ribbon-divider"></div>
                     <div class="ribbon-group">
-                        <button class="ribbon-btn" title="Lista con viíetas"
-                            onclick="execOrdFmt('insertUnorderedList')">&#8226;
-                        </button>
-                        <button class="ribbon-btn" title="Lista numerada" onclick="execOrdFmt('insertOrderedList')">1.
-                        </button>
+                        <button class="ribbon-btn" title="Lista con viñetas"
+                            onclick="execOrdFmt('insertUnorderedList')">&#8226;</button>
+                        <button class="ribbon-btn" title="Lista numerada"
+                            onclick="execOrdFmt('insertOrderedList')">1.</button>
                         <button class="ribbon-btn" title="Reducir sangría"
                             onclick="execOrdFmt('outdent')">&#8676;</button>
                         <button class="ribbon-btn" title="Aumentar sangría"
@@ -6011,9 +6272,10 @@ PARROQUIA/SECTOR: </textarea>
                             style="color:#dc2626;">&#10006; fmt</button>
                     </div>
                 </div>
-                <div class="military-document-container">
 
-                    <div class="military-paper" id="ordpatEchoContent">
+                <!-- DOCUMENTO MILITAR UNIFICADO -->
+                <div class="military-document-container">
+                    <div class="military-paper" id="ordpatUnifiedContent">
                         <div style="text-align: center; margin-bottom: 1rem;">
                             <div class="doc-classification secreto"
                                 style="font-weight: 900; color: #b91c1c; text-decoration: underline; font-size: 8pt; margin-bottom: 8px;">
@@ -6025,13 +6287,13 @@ PARROQUIA/SECTOR: </textarea>
                         <div
                             style="text-align: left; margin-bottom: 0.5rem; font-family: Arial, sans-serif; font-size: 8pt; font-weight: bold;">
                             <span style="text-decoration: underline;">ORDEN DE PATRULLA</span><br>
-                            <span id="displayRef_ordpatEchoContent" contenteditable="true"
-                                style="border-bottom: 1px dotted #ccc; min-width: 150px; display: inline-block;">ARE-ORDPAT-UT100.51.4-XXXXXXR-XXX-2026-XXXX-P</span>
+                            <span id="displayRef_ordpatUnifiedContent" contenteditable="true"
+                                style="border-bottom: 1px dotted #ccc; min-width: 150px; display: inline-block;">ARE-ORDPAT-[GT]-XXXXXXR-XXX-2026-XXXX-P</span>
                         </div>
-                        <div
-                            style="text-align:center; font-weight:900; text-transform:uppercase; text-decoration:underline; font-size:9pt; line-height:1.2; margin:1rem 0 1.5rem 0; font-family:Arial,sans-serif;">
-                            A LA ORDEN FRAGMENTARIA ARE-GT ECHO-OPE-0001-2026-P "POSEIDÓN" PARA LA EJECUCIÓN DE
-                            OPERACIONES MILITARES DE ÁMBITO INTERNO EN EL AROPE "GUAYAQUIL" DEL 13 DE MAYO DE 2026
+                        <div style="text-align:center; font-weight:900; text-transform:uppercase; text-decoration:underline; font-size:9pt; line-height:1.2; margin:1rem 0 1.5rem 0; font-family:Arial,sans-serif;"
+                            contenteditable="true">
+                            A LA ORDEN FRAGMENTARIA [REFERENCIA ORDFRAG] PARA LA EJECUCIÓN DE OPERACIONES MILITARES DE
+                            ÁMBITO INTERNO EN EL AROPE "GUAYAQUIL"
                         </div>
                         <div style="margin-bottom:0.8rem;">
                             <div
@@ -6040,9 +6302,8 @@ PARROQUIA/SECTOR: </textarea>
                             <div
                                 style="padding-left:1cm; text-align:justify; font-size:8pt; font-family:Arial,sans-serif;">
                                 <div class="military-input" contenteditable="true"
-                                    style="min-height: calc(1.3em * 3); outline: none;">A LA ORDEN DE OPERACIONES Nro.
-                                    002-05-2026 "LIBERTAD" DE LA FUERZA DE TAREA CONJUNTA "GUAYAS" ORDFRAG- ARE-GT
-                                    ECHO-OPE-0001-2026-P "POSEIDÓN" DECRETO EJECUTIVO Nro. 353 ; 02 -ABR-2026</div>
+                                    style="min-height: calc(1.3em * 3); outline: none;">[REFERENCIAS: ORDEN DE
+                                    OPERACIONES, ORDFRAG, DECRETO EJECUTIVO]</div>
                             </div>
                         </div>
                         <div style="margin-bottom:0.8rem;">
@@ -6051,8 +6312,8 @@ PARROQUIA/SECTOR: </textarea>
                                 II.&nbsp;&nbsp;ORGANIZACIÓN POR TAREAS:</div>
                             <div style="padding-left:1cm; font-size:8pt; font-family:Arial,sans-serif;">
                                 <div class="military-input" contenteditable="true"
-                                    style="min-height: calc(1.3em * 1); outline: none;">IGUAL A LA ORDFRAG- ARE-GT
-                                    ECHO-OPE-0001-2026-P "POSEIDÓN"</div>
+                                    style="min-height: calc(1.3em * 1); outline: none;">IGUAL A LA ORDFRAG [REFERENCIA]
+                                </div>
                             </div>
                         </div>
                         <div style="margin-bottom:0.8rem;">
@@ -6061,8 +6322,8 @@ PARROQUIA/SECTOR: </textarea>
                                 III.&nbsp;&nbsp;SITUACIÓN.</div>
                             <div style="padding-left:1cm; font-size:8pt; font-family:Arial,sans-serif;">
                                 <div class="military-input" contenteditable="true"
-                                    style="min-height: calc(1.3em * 1); outline: none;">IGUAL A LA ORDFRAG- ARE-GT
-                                    ECHO-OPE-0001-2026-P "POSEIDÓN"</div>
+                                    style="min-height: calc(1.3em * 1); outline: none;">IGUAL A LA ORDFRAG [REFERENCIA]
+                                </div>
                             </div>
                         </div>
                         <div style="margin-bottom:0.8rem;">
@@ -6072,11 +6333,9 @@ PARROQUIA/SECTOR: </textarea>
                             <div
                                 style="padding-left:1cm; text-align:justify; font-size:8pt; font-family:Arial,sans-serif;">
                                 <div class="military-input" contenteditable="true"
-                                    style="min-height: calc(1.3em * 4); outline: none;">EL GRUPO DE TAREA "ECHO"
-                                    EJECUTARÁ OPERACIONES DE RECONOCIMIENTO, PATRULLAJE Y CONTROL MILITAR EN EL
-                                    DISTRITO ESTEROS, ENFOCANDO LOS ESFUERZOS EN EL SECTOR DE LA ISLA TRINITARIA, DESDE
-                                    LAS 00H00
-                                    DEL 08-MAYO-2026 HASTA LA DEGRADACIÓN Y/O NEUTRALIZACIÓN DE LAS AMENAZAS, A FIN DE
+                                    style="min-height: calc(1.3em * 4); outline: none;">[NOMBRE DEL GT] EJECUTARÁ
+                                    OPERACIONES DE [TIPO DE OPERACIÓN] EN EL [ÁREA DE OPERACIÓN], DESDE LAS [HORA/FECHA
+                                    DE INICIO] HASTA LA DEGRADACIÓN Y/O NEUTRALIZACIÓN DE LAS AMENAZAS, A FIN DE
                                     CONTRIBUIR A LA REDUCCIÓN DEL FENÓMENO DE LA VIOLENCIA EN GUAYAQUIL.</div>
                             </div>
                         </div>
@@ -6087,15 +6346,11 @@ PARROQUIA/SECTOR: </textarea>
                             <div
                                 style="padding-left:1cm; text-align:justify; font-size:8pt; font-family:Arial,sans-serif;">
                                 <div class="military-input" contenteditable="true"
-                                    style="min-height: calc(1.3em * 6); outline: none;">LAS UNIDADES SUBORDINADAS AL GT
-                                    "ECHO", EN EL DISTRITO ESTEROS MATERIALIZARÁN PRESENCIA MILITAR EN LOS SECTORES DE
-                                    ALTA AFLUENCIA, LOCALIZARÁN Y CAPTURARÁN OBJETIVOS DE OPORTUNIDAD, REALIZARÁN
-                                    OPERACIONES CAMEX Y RECONOCIMIENTO OFENSIVO, ACTUARÁN CON INFORMACIÓN Y LLAMADAS
-                                    DE
-                                    EMERGENCIA QUE SEAN ENTREGADAS POR INTELIGENCIA; CON ORDEN, EJECUTARÁN OPERACIONES
-                                    ESPECIALES PARA LA APREHENSIÓN DE BLANCOS DE ALTO Y MEDIANO VALOR, REALIZARÁN
-                                    OPERACIONES EN APOYO A OTRAS FUERZAS Y ENTIDADES DEL ESTADO, A PARTIR DEL DÍA 20 08
-                                    00 R- MAY -2026 HASTA EL FINEX DE LA OPERACIÓN.</div>
+                                    style="min-height: calc(1.3em * 6); outline: none;">LAS UNIDADES SUBORDINADAS AL
+                                    [NOMBRE DEL GT] MATERIALIZARÁN PRESENCIA MILITAR EN LOS SECTORES DE ALTA AFLUENCIA,
+                                    LOCALIZARÁN Y CAPTURARÁN OBJETIVOS DE OPORTUNIDAD, REALIZARÁN OPERACIONES CAMEX Y
+                                    RECONOCIMIENTO OFENSIVO, ACTUARÁN CON INFORMACIÓN Y LLAMADAS DE EMERGENCIA QUE SEAN
+                                    ENTREGADAS POR INTELIGENCIA; CON ORDEN, EJECUTARÁN OPERACIONES ESPECIALES.</div>
                             </div>
                         </div>
                         <div style="margin-bottom:0.8rem;">
@@ -6106,12 +6361,9 @@ PARROQUIA/SECTOR: </textarea>
                                 style="padding-left:1cm; text-align:justify; font-size:8pt; font-family:Arial,sans-serif;">
                                 <div class="military-input" contenteditable="true"
                                     style="min-height: calc(1.3em * 6); outline: none;">" REALIZAR OPERACIONES DE
-                                    CONTROL DE ARMAS, MUNICIONES Y EXPLOSIVOS (CAMEX), EN EL DISTRITO ESTEROS.<br>"
-                                    REALIZAR OPERACIONES DE RECONOCIMIENTO OFENSIVO EN EL DISTRITO ESTEROS CIRCUITOS
-                                    MALVINAS, ESTEROS E ISLA TRINITARIA.<br>" REALIZAR RETENES FIJOS Y MÓVILES EN LAS
-                                    VÍAS PRINCIPALES Y ACCESOS A LOS PUERTOS UBICADOS EN EL DISTRITO ESTEROS.<br>"
-                                    EJECUTAR OPERACIONES DE APOYO A LAS ENTIDADES DEL ESTADO CON Y SIN ESTADO DE
-                                    EXCEPCIÓN EN EL ÁREA DE OPERACIÓN "GUAYAQUIL", CON ORDEN.</div>
+                                    CONTROL DE ARMAS, MUNICIONES Y EXPLOSIVOS (CAMEX).<br>" REALIZAR OPERACIONES DE
+                                    RECONOCIMIENTO OFENSIVO.<br>" REALIZAR RETENES FIJOS Y MÓVILES EN LAS VÍAS
+                                    PRINCIPALES.<br>" EJECUTAR OPERACIONES DE APOYO A LAS ENTIDADES DEL ESTADO.</div>
                             </div>
                         </div>
                         <div style="margin-bottom:0.8rem;">
@@ -6121,8 +6373,8 @@ PARROQUIA/SECTOR: </textarea>
                             <div
                                 style="padding-left:1cm; text-align:justify; font-size:8pt; font-family:Arial,sans-serif;">
                                 <div class="military-input" contenteditable="true"
-                                    style="min-height: calc(1.3em * 3); outline: none;">CUMPLIMIENTO GENERAL CUMPLIR
-                                    ESTRICTAMENTE CON: EL DERECHO INTERNACIONAL HUMANITARIO (DIH), LOS DERECHOS HUMANOS
+                                    style="min-height: calc(1.3em * 3); outline: none;">CUMPLIMIENTO GENERAL: CUMPLIR
+                                    ESTRICTAMENTE CON EL DERECHO INTERNACIONAL HUMANITARIO (DIH), LOS DERECHOS HUMANOS
                                     (DD.HH.), EL USO PROGRESIVO Y LEGÍTIMO DE LA FUERZA (LORULF), NORMAS DE
                                     COMPORTAMIENTO, REGLAS DE ENFRENTAMIENTO, Y LAS NORMAS DE DERECHO CONEXO (NDC)
                                     ESTABLECIDAS EN LAS REFERENCIAS INSTITUCIONALES.</div>
@@ -6136,11 +6388,10 @@ PARROQUIA/SECTOR: </textarea>
                                 style="padding-left:1cm; text-align:justify; font-size:8pt; font-family:Arial,sans-serif;">
                                 <div class="military-input" contenteditable="true"
                                     style="min-height: calc(1.3em * 4); outline: none;">MANTENER ESPECIAL ATENCIÓN A LA
-                                    CORRECTA MANIPULACIÓN Y EMPLEO DEL ARMAMENTO, ASÍ COMO CON LOS MEDIOS DE
-                                    TRANSPORTE
+                                    CORRECTA MANIPULACIÓN Y EMPLEO DEL ARMAMENTO, ASÍ COMO CON LOS MEDIOS DE TRANSPORTE
                                     Y SEÑALÉTICA, FIN EVITAR ACCIDENTES. LOS JEFES DE PATRULLA DEBERÁN REALIZAR LOS
-                                    PROCEDIMIENTOS DE SEGURIDAD DE ARMAMENTO EN EL PATIO DE CODESC, DE ACUERDO CON LOS
-                                    PASOS REGLAMENTARIOS.</div>
+                                    PROCEDIMIENTOS DE SEGURIDAD DE ARMAMENTO DE ACUERDO CON LOS PASOS REGLAMENTARIOS.
+                                </div>
                             </div>
                         </div>
                         <div style="margin-bottom:1.5rem;">
@@ -6151,8 +6402,8 @@ PARROQUIA/SECTOR: </textarea>
                                 style="padding-left:1cm; text-align:justify; font-size:8pt; font-family:Arial,sans-serif;">
                                 <div class="military-input" contenteditable="true"
                                     style="min-height: calc(1.3em * 2); outline: none;">ESTE COMANDO, EN SU SEDE
-                                    HABITUAL EN LA COMANDANCIA DE LA ESCUADRA. TODA ACCIíN REALIZADA DURANTE LA
-                                    OPERACIíN DEBERí SER COMUNICADA INMEDIATAMENTE AL PUESTO DE MANDO.</div>
+                                    HABITUAL. TODA ACCIÓN REALIZADA DURANTE LA OPERACIÓN DEBERÁ SER COMUNICADA
+                                    INMEDIATAMENTE AL PUESTO DE MANDO.</div>
                             </div>
                         </div>
                         <div style="margin-top:2rem; font-family:Arial,sans-serif; font-size:8pt; line-height:1.6;">
@@ -6191,9 +6442,10 @@ PARROQUIA/SECTOR: </textarea>
                         <div
                             style="margin-top:3rem; text-align:right; font-size:8pt; font-family:Arial,sans-serif; padding-right:1cm; margin-bottom:1rem;">
                             <div style="display:inline-block; text-align:center;">
-                                <div style="font-weight:bold;" contenteditable="true">CPNV-EMC FIDEL FERNANDO ERAZO
-                                    JACOME</div>
-                                <div style="font-weight:bold;" contenteditable="true">COMANDANTE DEL GT ECHO</div>
+                                <div style="font-weight:bold;" contenteditable="true" id="unifiedSignatureName">NOMBRE Y
+                                    APELLIDO DEL COMANDANTE</div>
+                                <div style="font-weight:bold;" contenteditable="true" id="unifiedSignatureTitle">
+                                    COMANDANTE DEL [NOMBRE GT]</div>
                             </div>
                         </div>
                         <div
@@ -6201,39 +6453,81 @@ PARROQUIA/SECTOR: </textarea>
                             &nbsp;</div>
 
                         <!-- ===== PANEL SELECTOR DE PERSONAL (NO SE IMPRIME) ===== -->
-                        <div id="personalPickerEcho" class="no-print"
+                        <div id="personalPickerUnified" class="no-print"
                             style="margin: 1rem 0 0.5rem; background: #eff6ff; border: 1.5px solid #93c5fd; border-radius: 10px; padding: 1rem; font-family: 'Inter', sans-serif;">
+                            <div style="font-weight: 800; font-size: 0.8rem; color: #1e40af; margin-bottom: 0.75rem;">📋
+                                SELECCIONAR PERSONAL PARA ANEXO "A"</div>
+
+                            <!-- Fila 1: Dos dropdowns + botones -->
                             <div
-                                style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.7rem;">
-                                <div style="font-weight: 800; font-size: 0.8rem; color: #1e40af;">📋 SELECCIONAR
-                                    PERSONAL PARA ANEXO "A" (GT ECHO)</div>
-                                <div style="display: flex; gap: 6px; flex-wrap: wrap;">
-                                    <select id="puestoPickerEcho" onchange="loadPersonalFromDistribucion('Echo')"
-                                        style="padding: 5px 8px; border: 1px solid #93c5fd; border-radius: 6px; font-size: 0.75rem; background: white; color:#1e293b; min-width: 200px;">
-                                        <option value="">-- Seleccionar Puesto Activado --</option>
+                                style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 0.6rem;">
+
+                                <!-- Dropdown 1: GTs Activados -->
+                                <div
+                                    style="display: flex; flex-direction: column; gap: 3px; flex: 1; min-width: 160px;">
+                                    <label
+                                        style="font-size: 0.68rem; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: 0.4px;">Grupo
+                                        de Tarea</label>
+                                    <select id="personalPickerGTSelector"
+                                        onchange="window.updatePersonalPickerFunctionDropdown(this.value)"
+                                        style="padding: 6px 10px; border: 1.5px solid #93c5fd; border-radius: 7px; font-size: 0.78rem; font-weight: 700; background: white; color:#1e293b; cursor: pointer; outline: none;">
+                                        <option value="">-- Seleccionar GT --</option>
                                     </select>
-                                    <button onclick="loadPersonalFromDistribucion('Echo')"
-                                        style="background:#3b82f6; color:white; border:none; border-radius:6px; padding:5px 12px; font-size:0.75rem; font-weight:700; cursor:pointer;">
-                                        Cargar Personal</button>
-                                    <button onclick="loadChoferesForPatrol('Echo')"
-                                        style="background:#8b5cf6; color:white; border:none; border-radius:6px; padding:5px 12px; font-size:0.75rem; font-weight:700; cursor:pointer;">🚚
-                                        Cargar Choferes</button>
-                                    <button onclick="insertPersonalToAnexoA('Echo')"
-                                        style="background:#10b981; color:white; border:none; border-radius:6px; padding:5px 12px; font-size:0.75rem; font-weight:700; cursor:pointer;">✅
-                                        Insertar Seleccionados en Tabla</button>
+                                </div>
+
+                                <!-- Dropdown 2: Funciones / Grupos -->
+                                <div
+                                    style="display: flex; flex-direction: column; gap: 3px; flex: 1; min-width: 160px;">
+                                    <label
+                                        style="font-size: 0.68rem; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: 0.4px;">Función
+                                        / Grupo</label>
+                                    <select id="personalPickerFunctionSelector"
+                                        style="padding: 6px 10px; border: 1.5px solid #93c5fd; border-radius: 7px; font-size: 0.78rem; font-weight: 700; background: white; color:#1e293b; cursor: pointer; outline: none;">
+                                        <option value="">-- Seleccionar primero un GT --</option>
+                                    </select>
+                                </div>
+
+                                <!-- Botones de acción -->
+                                <div style="display: flex; flex-direction: column; gap: 3px;">
+                                    <label
+                                        style="font-size: 0.68rem; font-weight: 700; color: transparent; text-transform: uppercase;">‎</label>
+                                    <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+                                        <button onclick="window.loadPersonalForAnexoByFilter()"
+                                            style="background:#3b82f6; color:white; border:none; border-radius:6px; padding:6px 12px; font-size:0.75rem; font-weight:700; cursor:pointer; white-space:nowrap;">
+                                            Cargar Personal
+                                        </button>
+                                        <button onclick="loadChoferesForPatrol('Unified')"
+                                            style="background:#8b5cf6; color:white; border:none; border-radius:6px; padding:6px 12px; font-size:0.75rem; font-weight:700; cursor:pointer; white-space:nowrap;">🚚
+                                            Cargar Choferes
+                                        </button>
+                                        <button onclick="window.loadVulnerablesForPatrolUnified()"
+                                            style="background:#ef4444; color:white; border:none; border-radius:6px; padding:6px 12px; font-size:0.75rem; font-weight:700; cursor:pointer; white-space:nowrap;">🛡️
+                                            Cargar Vulnerables
+                                        </button>
+                                        <button onclick="window.loadSuboficialesForPatrolUnified()"
+                                            style="background:#f59e0b; color:white; border:none; border-radius:6px; padding:6px 12px; font-size:0.75rem; font-weight:700; cursor:pointer; white-space:nowrap;">⭐
+                                            Cargar Suboficiales
+                                        </button>
+                                        <button onclick="insertPersonalToAnexoA('Unified')"
+                                            style="background:#10b981; color:white; border:none; border-radius:6px; padding:6px 12px; font-size:0.75rem; font-weight:700; cursor:pointer; white-space:nowrap;">✅
+                                            Insertar en Tabla
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
-                            <div id="personalListEcho"
-                                style="max-height: 220px; overflow-y: auto; border: 1px solid #dbeafe; border-radius: 6px; background: white;">
-                                <p style="text-align:center; color:#94a3b8; font-size:0.75rem; padding:1rem;">Haga clic
-                                    en "Cargar Personal" para ver los efectivos disponibles según la distribución de
-                                    puestos.</p>
+
+                            <!-- Lista de personal cargada -->
+                            <div id="personalListUnified"
+                                style="max-height: 220px; overflow-y: auto; border: 1px solid #bfdbfe; border-radius: 6px; background: white;">
+                                <p style="text-align:center; color:#94a3b8; font-size:0.75rem; padding:1rem;">Seleccione
+                                    un GT y Función/Grupo, o use los botones de arriba para cargar personal específico.
+                                </p>
                             </div>
                         </div>
 
                         <div class="page-break" style="page-break-before: always; margin:0; padding:0; height:0;"></div>
 
-                        <!-- ENCABEZADO INSTITUCIONAL REPETIDO ECHO -->
+                        <!-- ENCABEZADO INSTITUCIONAL REPETIDO (ANEXO A) -->
                         <div
                             style="text-align: center; margin-bottom: 1rem; border-bottom: 1.5px solid #000; padding-bottom: 5px;">
                             <div class="doc-classification secreto"
@@ -6246,8 +6540,8 @@ PARROQUIA/SECTOR: </textarea>
                                 style="font-weight: bold; font-size: 8pt; text-decoration: underline; margin-top: 4px;">
                                 ORDEN DE PATRULLA
                             </div>
-                            <div style="font-size: 7pt; font-weight: bold;" id="headerRefEcho">
-                                ARE-ORDPAT-UT100.61.5-XXXXXXR-XXX-2026-XXXX-P
+                            <div style="font-size: 7pt; font-weight: bold;" id="annexRefUnified">
+                                ARE-ORDPAT-[GT]-XXXXXXR-XXX-2026-XXXX-P
                             </div>
                         </div>
 
@@ -6256,15 +6550,15 @@ PARROQUIA/SECTOR: </textarea>
                             ANEXO "A"<br>NÓMINA DE PMP DE PATRULLA CON SU ARMAMENTO
                         </div>
 
-                        <!-- BUSCADOR RíPIDO PARA ANEXO A (ECHO) -->
+                        <!-- BUSCADOR RÁPIDO PARA ANEXO A -->
                         <div class="no-print"
                             style="margin-bottom: 8px; display: flex; align-items: center; gap: 10px; background: #eff6ff; padding: 6px; border-radius: 6px; border: 1px solid #93c5fd;">
                             <span
                                 style="font-size: 0.75rem; font-weight: 800; color: #1e40af; display: flex; align-items: center; gap: 4px;">
-                                <span style="font-size: 1rem;"></span> BUSCADOR RÁPIDO:
+                                🔍 BUSCADOR RÁPIDO:
                             </span>
-                            <input type="text" placeholder="Escriba nombre o cídula para filtrar la tabla..."
-                                onkeyup="filterAnexoTable('Echo', this.value)"
+                            <input type="text" placeholder="Escriba nombre o cédula para filtrar la tabla..."
+                                onkeyup="filterAnexoTable('Unified', this.value)"
                                 style="flex: 1; padding: 5px 12px; border: 1.5px solid #3b82f6; border-radius: 4px; font-size: 0.8rem; outline: none;">
                         </div>
 
@@ -6279,367 +6573,11 @@ PARROQUIA/SECTOR: </textarea>
                                     <th>CÉDULA</th>
                                 </tr>
                             </thead>
-                            <tbody id="anexoATbodyEcho"></tbody>
+                            <tbody id="anexoATbodyUnified"></tbody>
                         </table>
                     </div>
                 </div>
             </div>
-
-            <!-- ===== ORDEN DE PATRULLA GT 100.51 ===== -->
-            <div id="ordpat51View" class="fullscreen-view" style="display:none;">
-                <div class="view-header">
-                    <h2 class="outfit-font">ORDEN DE PATRULLA GT 100.51</h2>
-                    <div class="view-actions">
-                        <button class="btn-secondary" onclick="resetTemplateForm('ordpat51Content')">
-                            <span class="icon"></span> Nueva Orden
-                        </button>
-                        <button class="btn-accent" onclick="saveTemplatePatrolOrder('GT51', 'ordpat51Content')">
-                            <span class="icon"></span> Guardar Orden
-                        </button>
-                        <button class="btn-primary" onclick="printPatrolOrder('ordpat51Content')">
-                            <span class="icon"></span> Imprimir / Exportar PDF
-                        </button>
-                    </div>
-                </div>
-                <!-- CINTA DE FORMATO ESTILO WORD - GT 100.51 -->
-                <div class="word-ribbon" id="wordRibbon_51">
-                    <div class="ribbon-group">
-                        <select class="ribbon-select" title="Tamaío de fuente"
-                            onchange="applyOrdpatFontSize(this.value)">
-                            <option value="7pt">7</option>
-                            <option value="8pt" selected>8</option>
-                            <option value="9pt">9</option>
-                            <option value="10pt">10</option>
-                            <option value="11pt">11</option>
-                            <option value="12pt">12</option>
-                            <option value="14pt">14</option>
-                            <option value="16pt">16</option>
-                        </select>
-                    </div>
-                    <div class="ribbon-divider"></div>
-                    <div class="ribbon-group">
-                        <button class="ribbon-btn" title="Negrita (Ctrl+B)"
-                            onclick="execOrdFmt('bold')"><b>N</b></button>
-                        <button class="ribbon-btn" title="Cursiva (Ctrl+I)"
-                            onclick="execOrdFmt('italic')"><i>K</i></button>
-                        <button class="ribbon-btn" title="Subrayado (Ctrl+U)"
-                            onclick="execOrdFmt('underline')"><u>S</u></button>
-                        <button class="ribbon-btn" title="Tachado"
-                            onclick="execOrdFmt('strikeThrough')"><s>T</s></button>
-                    </div>
-                    <div class="ribbon-divider"></div>
-                    <div class="ribbon-group">
-                        <button class="ribbon-btn" title="Alinear izquierda"
-                            onclick="execOrdFmt('justifyLeft')">&#8676;</button>
-                        <button class="ribbon-btn" title="Centrar"
-                            onclick="execOrdFmt('justifyCenter')">&#9552;</button>
-                        <button class="ribbon-btn" title="Alinear derecha"
-                            onclick="execOrdFmt('justifyRight')">&#8677;</button>
-                        <button class="ribbon-btn" title="Justificar"
-                            onclick="execOrdFmt('justifyFull')">&#9636;</button>
-                    </div>
-                    <div class="ribbon-divider"></div>
-                    <div class="ribbon-group">
-                        <button class="ribbon-btn" title="Lista con viíetas"
-                            onclick="execOrdFmt('insertUnorderedList')">&#8226;
-                        </button>
-                        <button class="ribbon-btn" title="Lista numerada" onclick="execOrdFmt('insertOrderedList')">1.
-                        </button>
-                        <button class="ribbon-btn" title="Reducir sangría"
-                            onclick="execOrdFmt('outdent')">&#8676;</button>
-                        <button class="ribbon-btn" title="Aumentar sangría"
-                            onclick="execOrdFmt('indent')">&#8677;</button>
-                    </div>
-                    <div class="ribbon-divider"></div>
-                    <div class="ribbon-group">
-                        <button class="ribbon-btn" title="MAYÚSCULAS" onclick="changeOrdCase('upper')"
-                            style="font-weight:700; font-size:0.7rem;">AA</button>
-                        <button class="ribbon-btn" title="minúsculas" onclick="changeOrdCase('lower')"
-                            style="font-size:0.7rem;">aa</button>
-                    </div>
-                    <div class="ribbon-divider"></div>
-                    <div class="ribbon-group">
-                        <label class="ribbon-btn ribbon-color-btn" title="Color de texto">
-                            🎨 Color
-                            <input type="color" value="#000000" onchange="execOrdFmtColor(this.value)">
-                        </label>
-                        <label class="ribbon-btn ribbon-color-btn" title="Resaltar (Fondo)" style="background:#fff9c4;">
-                            &#9998; Resalt.
-                            <input type="color" value="#ffff00" onchange="execOrdFmtHighlight(this.value)">
-                        </label>
-                    </div>
-                    <div class="ribbon-divider"></div>
-                    <div class="ribbon-group">
-                        <button class="ribbon-btn" title="Borrar formato" onclick="execOrdFmt('removeFormat')"
-                            style="color:#dc2626;">&#10006; fmt</button>
-                    </div>
-                </div>
-                <div class="military-document-container">
-
-                    <div class="military-paper" id="ordpat51Content">
-                        <div style="text-align: center; margin-bottom: 1rem;">
-                            <div class="doc-classification secreto"
-                                style="font-weight: 900; color: #b91c1c; text-decoration: underline; font-size: 8pt; margin-bottom: 8px;">
-                                SECRETO
-                            </div>
-                            <img src="ESCUDOARMADA.jpg" alt="Logo Armada"
-                                style="width: 70px; display: block; margin: 0 auto;">
-                        </div>
-                        <div
-                            style="text-align: left; margin-bottom: 0.5rem; font-family: Arial, sans-serif; font-size: 8pt; font-weight: bold;">
-                            <span style="text-decoration: underline;">ORDEN DE PATRULLA</span><br>
-                            <span id="displayRef_ordpat51Content" contenteditable="true"
-                                style="border-bottom: 1px dotted #ccc; min-width: 150px; display: inline-block;">ARE-ORDPAT-UT100.61.5-XXXXXXR-XXX-2026-XXXX-P</span>
-                        </div>
-                        <div
-                            style="text-align:center; font-weight:900; text-transform:uppercase; text-decoration:underline; font-size:9pt; line-height:1.2; margin:1rem 0 1.5rem 0; font-family:Arial,sans-serif;">
-                            A LA ORDEN FRAGMENTARIA ARE- GT100.51 -OPE- 0005 -2026-P "LINCE V" PARA LA EJECUCIíN DE
-                            OPERACIONES MILITARES DE íMBITO INTERNO EN EL AROPE "GUAYAQUIL"
-                        </div>
-                        <div style="margin-bottom:0.8rem;">
-                            <div
-                                style="font-weight:900; text-transform:uppercase; font-size:8pt; font-family:Arial,sans-serif;">
-                                I.&nbsp;&nbsp;REFERENCIAS:</div>
-                            <div
-                                style="padding-left:1cm; text-align:justify; font-size:8pt; font-family:Arial,sans-serif;">
-                                <div class="military-input" contenteditable="true"
-                                    style="min-height: calc(1.3em * 3); outline: none;">A LA ORDEN DE OPERACIONES Nro.
-                                    002-05-2026 "LIBERTAD" DE LA FUERZA DE TAREA CONJUNTA "GUAYAS" ORDFRAG
-                                    GT100.51-OPE-0005-2026-P "LINCE V" DECRETO EJECUTIVO Nro. 353 ; 02-ABR-2026</div>
-                            </div>
-                        </div>
-                        <div style="margin-bottom:0.8rem;">
-                            <div
-                                style="font-weight:900; text-transform:uppercase; font-size:8pt; font-family:Arial,sans-serif;">
-                                II.&nbsp;&nbsp;ORGANIZACIíN POR TAREAS:</div>
-                            <div style="padding-left:1cm; font-size:8pt; font-family:Arial,sans-serif;">
-                                <div class="military-input" contenteditable="true"
-                                    style="min-height: calc(1.3em * 1); outline: none;">IGUAL A LA ORDFRAG
-                                    GT100.51-OPE-0005-2026-P "LINCE V"</div>
-                            </div>
-                        </div>
-                        <div style="margin-bottom:0.8rem;">
-                            <div
-                                style="font-weight:900; text-transform:uppercase; font-size:8pt; font-family:Arial,sans-serif;">
-                                III.&nbsp;&nbsp;SITUACIíN.</div>
-                            <div style="padding-left:1cm; font-size:8pt; font-family:Arial,sans-serif;">
-                                <div class="military-input" contenteditable="true"
-                                    style="min-height: calc(1.3em * 1); outline: none;">IGUAL A LA ORDFRAG
-                                    GT100.51-OPE-0005-2026-P "LINCE V"</div>
-                            </div>
-                        </div>
-                        <div style="margin-bottom:0.8rem;">
-                            <div
-                                style="font-weight:900; text-transform:uppercase; font-size:8pt; font-family:Arial,sans-serif;">
-                                IV.&nbsp;&nbsp;MISIíN.</div>
-                            <div
-                                style="padding-left:1cm; text-align:justify; font-size:8pt; font-family:Arial,sans-serif;">
-                                <div class="military-input" contenteditable="true"
-                                    style="min-height: calc(1.3em * 4); outline: none;">LA UNIDAD DE TAREA 100.51.4
-                                    EJECUTARÁ OPERACIONES DE SEGURIDAD MARÍTIMA, PATRULLAJE FLUVIAL Y CONTROL EN EL
-                                    ESTERO SALADO Y SECTOR PORTUARIO DE GUAYAQUIL, DESDE LAS 00H00 DEL 20-MAYO-2026
-                                    HASTA LA NEUTRALIZACIÓN DE LAS AMENAZAS, A FIN DE GARANTIZAR LA SEGURIDAD MARÍTIMA
-                                    Y
-                                    CONTRIBUIR A LA REDUCCIÓN DEL CRIMEN ORGANIZADO.</div>
-                            </div>
-                        </div>
-                        <div style="margin-bottom:0.8rem;">
-                            <div
-                                style="font-weight:900; text-transform:uppercase; font-size:8pt; font-family:Arial,sans-serif;">
-                                V.&nbsp;&nbsp;EJECUCIíN.</div>
-                            <div
-                                style="padding-left:1cm; text-align:justify; font-size:8pt; font-family:Arial,sans-serif;">
-                                <div class="military-input" contenteditable="true"
-                                    style="min-height: calc(1.3em * 5); outline: none;">LAS EMBARCACIONES SUBORDINADAS A
-                                    LA UT 100.51.4 REALIZARÁN PATRULLAJES FLUVIALES EN EL ESTERO SALADO, CONTROLES EN
-                                    LOS PUERTOS Y MUELLES, OPERACIONES DE INTERCEPTACIÓN, INSPECCIONES DE EMBARCACIONES
-                                    Y APOYO A LAS ENTIDADES DEL ESTADO EN EL ÁREA MARÍTIMA DE GUAYAQUIL, A PARTIR DEL
-                                    DÍA 20 05 00 R-MAY-2026 HASTA EL FINEX DE LA OPERACIÓN.</div>
-                            </div>
-                        </div>
-                        <div style="margin-bottom:0.8rem;">
-                            <div
-                                style="font-weight:900; text-transform:uppercase; font-size:8pt; font-family:Arial,sans-serif;">
-                                VI.&nbsp;&nbsp;TAREAS.</div>
-                            <div
-                                style="padding-left:1cm; text-align:justify; font-size:8pt; font-family:Arial,sans-serif;">
-                                <div class="military-input" contenteditable="true"
-                                    style="min-height: calc(1.3em * 5); outline: none;">" REALIZAR PATRULLAJES
-                                    FLUVIALES
-                                    EN EL ESTERO SALADO Y SECTORES PORTUARIOS.<br>" EJECUTAR OPERACIONES DE CONTROL E
-                                    INSPECCIÓN DE EMBARCACIONES SOSPECHOSAS.<br>" REALIZAR OPERACIONES DE SEGURIDAD
-                                    EN
-                                    INSTALACIONES PORTUARIAS CRÍTICAS.<br>" APOYAR A OTRAS FUERZAS Y ENTIDADES DEL
-                                    ESTADO EN EL ÁREA MARÍTIMA, CON ORDEN.</div>
-                            </div>
-                        </div>
-                        <div style="margin-bottom:0.8rem;">
-                            <div
-                                style="font-weight:900; text-transform:uppercase; font-size:8pt; font-family:Arial,sans-serif;">
-                                VII.&nbsp;&nbsp;CONDUCTA EN LAS OPERACIONES:</div>
-                            <div
-                                style="padding-left:1cm; text-align:justify; font-size:8pt; font-family:Arial,sans-serif;">
-                                <div class="military-input" contenteditable="true"
-                                    style="min-height: calc(1.3em * 3); outline: none;">CUMPLIR ESTRICTAMENTE CON: EL
-                                    DERECHO INTERNACIONAL HUMANITARIO (DIH), LOS DERECHOS HUMANOS (DD.HH.), EL USO
-                                    PROGRESIVO Y LEGíTIMO DE LA FUERZA (LORULF), NORMAS DE COMPORTAMIENTO, REGLAS DE
-                                    ENFRENTAMIENTO, Y LAS NORMAS DE DERECHO CONEXO (NDC).</div>
-                            </div>
-                        </div>
-                        <div style="margin-bottom:0.8rem;">
-                            <div
-                                style="font-weight:900; text-transform:uppercase; font-size:8pt; font-family:Arial,sans-serif;">
-                                VIII.&nbsp;&nbsp;ADMINISTRACIÓN Y LOGÍSTICA</div>
-                            <div
-                                style="padding-left:1cm; text-align:justify; font-size:8pt; font-family:Arial,sans-serif;">
-                                <div class="military-input" contenteditable="true"
-                                    style="min-height: calc(1.3em * 3); outline: none;">MANTENER ESPECIAL ATENCIÓN A LA
-                                    SEGURIDAD DURANTE LAS OPERACIONES MARÍTIMAS Y FLUVIALES. LOS JEFES DE PATRULLA
-                                    DEBERÁN VERIFICAR EL ESTADO DE LAS EMBARCACIONES Y EQUIPOS ANTES DE CADA SALIDA
-                                    OPERACIONAL.</div>
-                            </div>
-                        </div>
-                        <div style="margin-bottom:1.5rem;">
-                            <div
-                                style="font-weight:900; text-transform:uppercase; font-size:8pt; font-family:Arial,sans-serif;">
-                                IX.&nbsp;&nbsp;COMANDO Y CONTROL</div>
-                            <div
-                                style="padding-left:1cm; text-align:justify; font-size:8pt; font-family:Arial,sans-serif;">
-                                <div class="military-input" contenteditable="true"
-                                    style="min-height: calc(1.3em * 2); outline: none;">ESTE COMANDO, EN LA BASE NAVAL
-                                    DE GUAYAQUIL. TODA ACCIÓN REALIZAR DURANTE LA OPERACIÓN DEBERÁ SER COMUNICADA
-                                    INMEDIATAMENTE AL PUESTO DE MANDO DE LA UT 100.51.4.</div>
-                            </div>
-                        </div>
-                        <div style="margin-top:2rem; font-family:Arial,sans-serif; font-size:8pt; line-height:1.6;">
-                            <div style="font-weight:bold; margin-bottom:0.8rem;">
-                                <span style="text-decoration:underline;">INSTRUCCIONES PARA ACUSAR RECIBO</span>.
-                                SUMILLA DEL JEFE DE PATRULLA DE CADA ET DURANTE EL BRIEFING.
-                            </div>
-                            <div style="padding-left:1cm;">
-                                <div style="margin-bottom:3px;">JEFE ET (SECTOR A) :
-                                    ........................................................................</div>
-                                <div style="margin-bottom:3px;">JEFE ET (SECTOR A) :
-                                    ........................................................................</div>
-                                <div style="margin-bottom:3px;">JEFE ET (SECTOR A) :
-                                    ........................................................................</div>
-                                <div style="margin-bottom:3px;">JEFE ET (SECTOR A) :
-                                    ........................................................................</div>
-                                <div style="margin-bottom:3px;">JEFE ET (SECTOR B) :
-                                    ........................................................................</div>
-                                <div style="margin-bottom:3px;">JEFE ET (SECTOR B) :
-                                    ........................................................................</div>
-                                <div style="margin-bottom:3px;">JEFE ET (SECTOR B) :
-                                    ........................................................................</div>
-                                <div style="margin-bottom:3px;">JEFE ET (SECTOR B) :
-                                    ........................................................................</div>
-                                <div style="margin-bottom:3px;">JEFE ET (SECTOR C) :
-                                    ........................................................................</div>
-                                <div style="margin-bottom:3px;">JEFE ET (SECTOR C) :
-                                    ........................................................................</div>
-                                <div style="margin-bottom:3px;">JEFE ET (SECTOR C) :
-                                    ........................................................................</div>
-                                <div style="margin-bottom:3px;">JEFE ET (SECTOR C) :
-                                    ........................................................................</div>
-                            </div>
-                        </div>
-
-                        <div
-                            style="margin-top:3rem; text-align:right; font-size:8pt; font-family:Arial,sans-serif; padding-right:1cm; margin-bottom:1rem;">
-                            <div style="display:inline-block; text-align:center;">
-                                <div style="font-weight:bold;" contenteditable="true">CPCB-EM NOMBRE APELLIDO</div>
-                                <div style="font-weight:bold;" contenteditable="true">COMANDANTE UT 100.51.4</div>
-                            </div>
-                        </div>
-                        <div
-                            style="text-align:center; font-weight:900; color:#b91c1c; margin-top:2rem; text-decoration:underline; font-size:8pt; font-family:Arial,sans-serif;">
-                            &nbsp;</div>
-
-                        <!-- ===== PANEL SELECTOR DE PERSONAL GT 100.51 (NO SE IMPRIME) ===== -->
-                        <div id="personalPicker51" class="no-print"
-                            style="margin: 1rem 0 0.5rem; background: #f0fdf4; border: 1.5px solid #6ee7b7; border-radius: 10px; padding: 1rem; font-family: 'Inter', sans-serif;">
-                            <div
-                                style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.7rem;">
-                                <div style="font-weight: 800; font-size: 0.8rem; color: #065f46;">📋 SELECCIONAR
-                                    PERSONAL PARA ANEXO "A" (GT 100.51)</div>
-                                <div style="display: flex; gap: 6px; flex-wrap: wrap;">
-                                    <select id="puestoPicker51" onchange="loadPersonalFromDistribucion('51')"
-                                        style="padding: 5px 8px; border: 1px solid #6ee7b7; border-radius: 6px; font-size: 0.75rem; background: white; color:#1e293b; min-width: 200px;">
-                                        <option value="">-- Seleccionar Puesto Activado --</option>
-                                    </select>
-                                    <button onclick="loadPersonalFromDistribucion('51')"
-                                        style="background:#10b981; color:white; border:none; border-radius:6px; padding:5px 12px; font-size:0.75rem; font-weight:700; cursor:pointer;">ð
-                                        Cargar Personal</button>
-                                    <button onclick="loadChoferesForPatrol('51')"
-                                        style="background:#8b5cf6; color:white; border:none; border-radius:6px; padding:5px 12px; font-size:0.75rem; font-weight:700; cursor:pointer;">🚚
-                                        Cargar Choferes</button>
-                                    <button onclick="insertPersonalToAnexoA('51')"
-                                        style="background:#3b82f6; color:white; border:none; border-radius:6px; padding:5px 12px; font-size:0.75rem; font-weight:700; cursor:pointer;">✅
-                                        Insertar Seleccionados en Tabla</button>
-                                </div>
-                            </div>
-                            <div id="personalList51"
-                                style="max-height: 220px; overflow-y: auto; border: 1px solid #a7f3d0; border-radius: 6px; background: white;">
-                                <p style="text-align:center; color:#94a3b8; font-size:0.75rem; padding:1rem;">Haga clic
-                                    en "Cargar Personal" para ver los efectivos disponibles segín la distribución de
-                                    puestos.</p>
-                            </div>
-                        </div>
-
-                        <div class="page-break" style="page-break-before: always; margin:0; padding:0; height:0;"></div>
-
-                        <!-- ENCABEZADO INSTITUCIONAL REPETIDO -->
-                        <div
-                            style="text-align: center; margin-bottom: 1rem; border-bottom: 1.5px solid #000; padding-bottom: 5px;">
-                            <div class="doc-classification secreto"
-                                style="font-weight: 900; color: #b91c1c; text-decoration: underline; font-size: 8pt; margin-bottom: 4px;">
-                                S E C R E T O
-                            </div>
-                            <img src="ESCUDOARMADA.jpg" alt="Logo Armada"
-                                style="width: 60px; display: block; margin: 0 auto;">
-                            <div
-                                style="font-weight: bold; font-size: 8pt; text-decoration: underline; margin-top: 4px;">
-                                ORDEN DE PATRULLA
-                            </div>
-                            <div style="font-size: 7pt; font-weight: bold;">
-                                ARE-ORDPAT-UT100.61.5-XXXXXXR-XXX-2026-XXXX-P
-                            </div>
-                        </div>
-
-                        <div
-                            style="font-weight:800; text-align:center; margin-bottom:0.5rem; font-size:9pt; font-family:Arial,sans-serif; padding-top:0.5rem;">
-                            ANEXO "A"<br>NíMINA DE PMP DE PATRULLA CON SU ARMAMENTO
-                        </div>
-
-                        <!-- BUSCADOR RÁPIDO PARA ANEXO A (GT 51) -->
-                        <div class="no-print"
-                            style="margin-bottom: 8px; display: flex; align-items: center; gap: 10px; background: #f0fdf4; padding: 6px; border-radius: 6px; border: 1px solid #6ee7b7;">
-                            <span
-                                style="font-size: 0.75rem; font-weight: 800; color: #065f46; display: flex; align-items: center; gap: 4px;">
-                                <span style="font-size: 1rem;"></span> BUSCADOR RÁPIDO:
-                            </span>
-                            <input type="text" placeholder="Escriba nombre o cídula para filtrar la tabla..."
-                                onkeyup="filterAnexoTable('51', this.value)"
-                                style="flex: 1; padding: 5px 12px; border: 1.5px solid #10b981; border-radius: 4px; font-size: 0.8rem; outline: none;">
-                        </div>
-
-                        <table class="military-table">
-                            <thead>
-                                <tr>
-                                    <th>ORD</th>
-                                    <th>GRAD/ESP</th>
-                                    <th>APELLIDOS NOMBRES</th>
-                                    <th>MATERIAL BELICO</th>
-                                    <th>MUNICION</th>
-                                    <th>CÉDULA</th>
-                                </tr>
-                            </thead>
-                            <tbody id="anexoATbody51"></tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-
             <!-- ===== REGISTRO DE GESTIÓN DE ÓRDENES (ECHO / 100.51) ===== -->
             <div id="patrolTemplateRegistryView" class="fullscreen-view" style="display:none;">
                 <div class="view-header">
@@ -6652,48 +6590,26 @@ PARROQUIA/SECTOR: </textarea>
                 </div>
 
                 <div class="table-container fade-in" style="margin-bottom: 2rem;">
-                    <h3 style="margin-bottom: 1rem; color: #1e293b; font-family: 'Outfit', sans-serif;">ÓRDENES DE
-                        PATRULLA GT ECHO</h3>
-                    <table class="data-table" id="templateOrdersTableEcho">
+                    <h3 style="margin-bottom: 1rem; color: #1e293b; font-family: 'Outfit', sans-serif;">HISTORIAL
+                        UNIFICADO DE ÓRDENES DE PATRULLA</h3>
+                    <table class="data-table" id="templateOrdersTableAll">
                         <thead>
                             <tr>
                                 <th>FECHA GESTIÓN</th>
+                                <th>GRUPO DE TAREA</th>
                                 <th>ID / REFERENCIA</th>
                                 <th>ESTADO</th>
                                 <th>CUMPLIMIENTO</th>
                                 <th style="text-align: center;">ACCIONES</th>
                             </tr>
                         </thead>
-                        <tbody id="templateOrdersTableBodyEcho">
+                        <tbody id="templateOrdersTableBodyAll">
                             <!-- Se puebla dinámicamente -->
                         </tbody>
                     </table>
-                    <div id="emptyRegistryMsgEcho"
+                    <div id="emptyRegistryMsgAll"
                         style="padding: 20px; text-align: center; color: var(--text-muted); display: none;">
-                        No se han registrado Órdenes para GT ECHO todavía.
-                    </div>
-                </div>
-
-                <div class="table-container fade-in">
-                    <h3 style="margin-bottom: 1rem; color: #1e293b; font-family: 'Outfit', sans-serif;">ÓRDENES DE
-                        PATRULLA GT 100.51</h3>
-                    <table class="data-table" id="templateOrdersTable51">
-                        <thead>
-                            <tr>
-                                <th>FECHA GESTIÓN</th>
-                                <th>ID / REFERENCIA</th>
-                                <th>ESTADO</th>
-                                <th>CUMPLIMIENTO</th>
-                                <th style="text-align: center;">ACCIONES</th>
-                            </tr>
-                        </thead>
-                        <tbody id="templateOrdersTableBody51">
-                            <!-- Se puebla dinámicamente -->
-                        </tbody>
-                    </table>
-                    <div id="emptyRegistryMsg51"
-                        style="padding: 20px; text-align: center; color: var(--text-muted); display: none;">
-                        No se han registrado Órdenes para GT 100.51 todavía.
+                        No se han registrado Órdenes de Patrulla todavía.
                     </div>
                 </div>
             </div>
@@ -6999,9 +6915,11 @@ PARROQUIA/SECTOR: </textarea>
         /* Botones de vista del mapa - estilo militar premium */
         #map-layer-switcher {
             position: absolute;
-            top: 85px; /* Desplazado hacia abajo para limpiar el header de 70px */
+            top: 85px;
+            /* Desplazado hacia abajo para limpiar el header de 70px */
             right: 12px;
-            z-index: 1010; /* Por encima de los controles estándar de Leaflet */
+            z-index: 1010;
+            /* Por encima de los controles estándar de Leaflet */
             display: none;
             /* Se muestra cuando el mapa está visible */
             background: rgba(15, 23, 42, 0.92);
@@ -7069,10 +6987,13 @@ PARROQUIA/SECTOR: </textarea>
 
         /* Desplazar los controles superiores de Leaflet para no solaparse con el header ni el switcher */
         .leaflet-top {
-            margin-top: 80px !important; /* Desplaza el zoom y los controles izquierdos abajo del header */
+            margin-top: 80px !important;
+            /* Desplaza el zoom y los controles izquierdos abajo del header */
         }
+
         .leaflet-top.leaflet-right {
-            margin-top: 170px !important; /* Desplaza el control de capas abajo del switcher de satélite */
+            margin-top: 170px !important;
+            /* Desplaza el control de capas abajo del switcher de satélite */
         }
     </style>
 
@@ -7823,6 +7744,39 @@ PARROQUIA/SECTOR: </textarea>
                 }
             }
         }
+        window.activatePersonnelGroupTab = function (viewId, sidebarViewId, btnEl) {
+            var sidebarBtn = document.querySelector('[data-view="' + sidebarViewId + '"]');
+            if (sidebarBtn && typeof activateSubmenuView === 'function') {
+                activateSubmenuView(viewId, sidebarBtn);
+            } else if (typeof showAppView === 'function') {
+                showAppView(viewId);
+            }
+
+            document.querySelectorAll('.personnel-tab-btn').forEach(function (b) {
+                b.classList.remove('active');
+            });
+            document.querySelectorAll('.personnel-tab-btn[data-target-view="' + viewId + '"]').forEach(function (b) {
+                b.classList.add('active');
+            });
+
+            if (viewId === 'postDistributionView' && typeof window.loadShiftTimesConfig === 'function') {
+                window.loadShiftTimesConfig();
+            }
+        };
+
+        window.toggleRotationDemo = function () {
+            var wrapper = document.getElementById('rotationDemoWrapper');
+            var btn = document.getElementById('rotationDemoToggleBtn');
+            if (wrapper && btn) {
+                if (wrapper.style.display === 'none') {
+                    wrapper.style.display = 'block';
+                    btn.textContent = '[ Ocultar ]';
+                } else {
+                    wrapper.style.display = 'none';
+                    btn.textContent = '[ Mostrar ]';
+                }
+            }
+        };
     </script>
 
 
@@ -8069,7 +8023,7 @@ PARROQUIA/SECTOR: </textarea>
         };
     </script>
     <script src="/socket.io/socket.io.js"></script>
-    <script src="SOPORTE_TECNICO/script_v2.js?v=8.7"></script>
+    <script src="SOPORTE_TECNICO/script_v2.js?v=8.9"></script>
 </body>
 
 </html><!--  -->

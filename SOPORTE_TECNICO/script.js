@@ -8,7 +8,21 @@ var defaultPasswords = {
     "PERSONAL OMAI": "personal",
     "LOGISTICA OMAI": "logistica",
     "INTELIGENCIA OMAI": "inteligencia",
-    "CMDTE GT 51": "cmdte"
+    "CMDTE GT 51": "cmdte",
+    "CORLOJ": "corloj",
+    "FRAPAL": "frapal",
+    "FRAMOR": "framor",
+    "CORIOS": "corios",
+    "CORMAN": "corman",
+    "ESCLAM": "esclam",
+    "TRAHUA": "trahua",
+    "ESCAUX": "escaux",
+    "TRACAL": "tracal",
+    "TANATA": "tanata",
+    "REMIMB": "remimb",
+    "REMCHI": "remchi",
+    "ESCORB": "escorb",
+    "COMSUB": "comsub"
 };
 var storedPasses = Object.assign({}, defaultPasswords); // Variable global inicializada
 var rotationStartDate = null;
@@ -56,7 +70,11 @@ async function serverSave(key, data) {
 }
 
 function saveAppState(key, value) {
-    localStorage.setItem(key, value);
+    try {
+        localStorage.setItem(key, value);
+    } catch (e) {
+        console.warn(`localStorage no pudo guardar '${key}' (almacenamiento lleno o restringido):`, e);
+    }
     let data = value;
     try {
         if (typeof value === 'string') {
@@ -181,6 +199,17 @@ function initAuth() {
         storedPasses = Object.assign({}, defaultPasswords);
         saveAppState('app_passwords', JSON.stringify(storedPasses));
     } else {
+        // Merge missing passwords from defaultPasswords
+        let updated = false;
+        Object.keys(defaultPasswords).forEach(k => {
+            if (!localPasses[k]) {
+                localPasses[k] = defaultPasswords[k];
+                updated = true;
+            }
+        });
+        if (updated) {
+            saveAppState('app_passwords', JSON.stringify(localPasses));
+        }
         storedPasses = localPasses;
     }
     
@@ -349,6 +378,8 @@ function applyRBAC(role) {
         ['logistica','about'].forEach(k => { if(menus[k]) menus[k].style.display = 'block'; });
     } else if (role === 'INTELIGENCIA OMAI') {
         ['inteligencia','about'].forEach(k => { if(menus[k]) menus[k].style.display = 'block'; });
+    } else {
+        ['personal'].forEach(k => { if(menus[k]) menus[k].style.display = 'block'; });
     }
     
     if(role === 'CMDTE GT 51') {
@@ -367,6 +398,47 @@ function applyRBAC(role) {
             const mapTools = document.getElementById('map-tools-item');
             if(mapTools) mapTools.style.display = 'none';
         }, 500);
+    }
+
+    const coreRoles = ['ADMINISTRADOR', 'JEFE OMAI', 'PERSONAL OMAI', 'LOGISTICA OMAI', 'INTELIGENCIA OMAI', 'CMDTE GT 51'];
+    if (!coreRoles.includes(role)) {
+        // 1. Mostrar y expandir el menú Personal en la barra lateral
+        const personalMenuItem = document.getElementById('menuItem-personal');
+        const personalMenuContent = document.getElementById('personal');
+        const personalMenuBtn = document.querySelector('#menuItem-personal .menu-btn');
+        if (personalMenuItem) personalMenuItem.style.display = 'block';
+        if (personalMenuContent) personalMenuContent.classList.add('active');
+        if (personalMenuBtn) personalMenuBtn.classList.add('active');
+
+        // 2. Ocultar sub-menús del menú Personal que no sean "Registro de Personal"
+        document.querySelectorAll('#menuItem-personal .sub-menu-btn').forEach(btn => {
+            if (btn.getAttribute('data-view') !== 'personnelView') {
+                btn.style.display = 'none';
+            } else {
+                btn.style.display = 'block';
+                btn.classList.add('active');
+            }
+        });
+
+        // 3. Ocultar pestañas dentro del módulo de personal excepto Diario CODESC
+        document.querySelectorAll('.personnel-tab-btn').forEach(btn => {
+            if (btn.getAttribute('data-target-view') !== 'dailyCodescRegistryView') {
+                btn.style.display = 'none';
+            } else {
+                btn.style.display = 'inline-block';
+                btn.classList.add('active');
+            }
+        });
+
+        // 4. Mostrar directamente la vista dailyCodescRegistryView y cargar sus datos
+        if (typeof showAppView === 'function') {
+            showAppView('dailyCodescRegistryView');
+        }
+        if (typeof populateCodescDailyUnits === 'function') populateCodescDailyUnits();
+        if (typeof renderCodescDailyRegistryTable === 'function') renderCodescDailyRegistryTable();
+        if (typeof setDefaultCodescDailyOmaiDate === 'function') setDefaultCodescDailyOmaiDate();
+        if (typeof renderCodescRequiredPersonnel === 'function') renderCodescRequiredPersonnel();
+        if (typeof renderCodescCompliance === 'function') renderCodescCompliance();
     }
 }
 
@@ -775,6 +847,13 @@ function showAppView(viewId) {
 
 function activateSubmenuView(viewId, btn, hideForm = false) {
     if (!viewId) return;
+
+    // Para los roles de buques, sustituir automáticamente la vista de Registro de Personal por Diario CODESC
+    const currentRole = sessionStorage.getItem('currentUserRole');
+    const coreRoles = ['ADMINISTRADOR', 'JEFE OMAI', 'PERSONAL OMAI', 'LOGISTICA OMAI', 'INTELIGENCIA OMAI', 'CMDTE GT 51'];
+    if (currentRole && !coreRoles.includes(currentRole) && viewId === 'personnelView') {
+        viewId = 'dailyCodescRegistryView';
+    }
 
     isHistoricosView = hideForm;
 
