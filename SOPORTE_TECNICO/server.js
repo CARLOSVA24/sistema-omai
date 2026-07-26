@@ -150,7 +150,8 @@ const db = new sqlite3.Database(dbPath, async (err) => {
     startServer();
 });
 
-function initializeDatabase() {
+// (función antigua eliminada — ver _initializeDatabase más abajo)
+function _OLD_UNUSED_initializeDatabase_PLACEHOLDER() {
     db.run(`CREATE TABLE IF NOT EXISTS app_data (
         key TEXT PRIMARY KEY,
         value TEXT
@@ -426,6 +427,7 @@ app.get('/api/status', (req, res) => {
 });
 
 
+const normalizeRoleStr = (str) => String(str || '').trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 
 // Endpoint de login: valida credenciales contra la base de datos
 app.post('/api/login', (req, res) => {
