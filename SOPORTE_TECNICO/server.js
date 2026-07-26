@@ -133,13 +133,16 @@ if (!require('fs').existsSync(dbDir)) {
     require('fs').mkdirSync(dbDir, { recursive: true });
     console.log(`Directorio de base de datos creado: ${dbDir}`);
 }
-const db = new sqlite3.Database(dbPath, (err) => {
+
+// Abrir la base de datos y arrancar el servidor SOLO cuando la BD esté lista
+const db = new sqlite3.Database(dbPath, async (err) => {
     if (err) {
         console.error('Error opening database:', err.message);
-    } else {
-        console.log(`Base de datos conectada en: ${dbPath}`);
-        initializeDatabase();
+        process.exit(1);
     }
+    console.log(`Base de datos conectada en: ${dbPath}`);
+    await initializeDatabase();
+    startServer();
 });
 
 function initializeDatabase() {
@@ -325,9 +328,91 @@ function initializeDatabase() {
             }
         });
     });
+} // end initializeDatabase — ahora retorna Promise
+
+// Convierte initializeDatabase a Promise para poder awaitarla antes de server.listen
+function initializeDatabase() {
+    return new Promise((resolve) => {
+        _initializeDatabase(resolve);
+    });
 }
 
-// Variables para seguimiento de usuarios activos
+async function _initializeDatabase(onDone) {
+    // Tablas estructurales (no necesitan callback — se ejecutan en serie por sqlite3)
+    await runDb(`CREATE TABLE IF NOT EXISTS app_data (key TEXT PRIMARY KEY, value TEXT)`);
+    await runDb(`CREATE TABLE IF NOT EXISTS users (role TEXT PRIMARY KEY, password TEXT)`);
+    await runDb(`CREATE TABLE IF NOT EXISTS activity_logs (id INTEGER PRIMARY KEY AUTOINCREMENT, user_role TEXT, action TEXT, timestamp DATETIME DEFAULT CURRENT_TIMESTAMP)`);
+    await runDb(`CREATE TABLE IF NOT EXISTS org_units (id TEXT PRIMARY KEY, name TEXT NOT NULL, parent_id TEXT, category TEXT, status TEXT DEFAULT 'ACTIVE', FOREIGN KEY(parent_id) REFERENCES org_units(id))`);
+
+    // Insertar unidades organizacionales por defecto
+    const orgUnits = [
+        ['GT_ECHO','GT ECHO',null,'GT','ACTIVE'],
+        ['CODESC','CODESC',null,'GT','ACTIVE'],
+        ['GT_100_51','GT 100.51',null,'GT','ACTIVE'],
+        ['FRAPAL','FRAPAL','GT_100_51','BUQUE','ACTIVE'],
+        ['FRAMOR','FRAMOR','GT_100_51','BUQUE','ACTIVE'],
+        ['UT_100.61.4','UT 100.61.4',null,'UT','ACTIVE'],
+        ['UT_100.61.5','UT 100.61.5',null,'UT','ACTIVE'],
+    ];
+    for (const [id, name, parent_id, category, status] of orgUnits) {
+        await runDb(`INSERT OR IGNORE INTO org_units (id, name, parent_id, category, status) VALUES (?, ?, ?, ?, ?)`, [id, name, parent_id, category, status]);
+    }
+
+    // Crear usuarios por defecto con hashSync (síncrono)
+    const SALT_ROUNDS = 10;
+    const rows = await allDb('SELECT role FROM users');
+    if (!rows || rows.length === 0) {
+        const defaultPasswords = {
+            "ADMINISTRADOR": "admin",
+            "JEFE OMAI": "jefe",
+            "PERSONAL OMAI": "personal",
+            "LOGISTICA OMAI": "logistica",
+            "INTELIGENCIA OMAI": "inteligencia",
+            "CMDTE GT 51": "cmdte",
+            "CORLOJ": "corloj",
+            "FRAPAL": "frapal",
+            "FRAMOR": "framor",
+            "CORIOS": "corios",
+            "CORMAN": "corman",
+            "ESCLAM": "esclam",
+            "TRAHUA": "trahua",
+            "ESCAUX": "escaux",
+            "TRACAL": "tracal",
+            "TANATA": "tanata",
+            "REMIMB": "remimb",
+            "REMCHI": "remchi",
+            "ESCORB": "escorb",
+            "COMSUB": "comsub",
+            "PURGA_MAESTRA": "omai2024"
+        };
+        const stmt = db.prepare("INSERT OR REPLACE INTO users (role, password) VALUES (?, ?)");
+        for (const [role, pass] of Object.entries(defaultPasswords)) {
+            stmt.run(role, bcrypt.hashSync(pass, SALT_ROUNDS));
+        }
+        await finalizeStmt(stmt);
+        console.log(`[DB] ${Object.keys(defaultPasswords).length} usuarios iniciales creados.`);
+    } else {
+        console.log(`[DB] ${rows.length} usuarios ya existen en la base de datos.`);
+    }
+    console.log('[DB] Base de datos inicializada y lista.');
+    if (onDone) onDone();
+}
+
+// Helpers: envuelven sqlite3 callbacks en Promises
+function runDb(sql, params = []) {
+    return new Promise((resolve, reject) => {
+        db.run(sql, params, (err) => { if (err) { console.error('[DB run]', err); resolve(); } else resolve(); });
+    });
+}
+function allDb(sql, params = []) {
+    return new Promise((resolve, reject) => {
+        db.all(sql, params, (err, rows) => { if (err) { console.error('[DB all]', err); resolve([]); } else resolve(rows); });
+    });
+}
+function finalizeStmt(stmt) {
+    return new Promise((resolve) => { stmt.finalize(resolve); });
+}
+
 const activeUsers = new Map();
 
 // API Endpoints
@@ -825,42 +910,21 @@ function getLocalIP() {
     return results.length > 0 ? results[0].address : 'localhost';
 }
 
-server.listen(PORT, '0.0.0.0', () => {
-    const interfaces = os.networkInterfaces();
-    const allIps = [];
-    for (const name of Object.keys(interfaces)) {
-        for (const iface of interfaces[name]) {
-            if (iface.family === 'IPv4' && !iface.internal) {
-                allIps.push({ name, address: iface.address });
-            }
-        }
-    }
-
-    const priorityIp = getLocalIP();
-
-    console.log(`
+// startServer: arranca el servidor HTTP (llamado después de que la BD esté lista)
+function startServer() {
+    server.listen(PORT, '0.0.0.0', () => {
+        const priorityIp = getLocalIP();
+        console.log(`
 ==================================================
    SISTEMA OMAI GT 100.51 - MODO TIEMPO REAL
 ==================================================
-   
    SERVIDOR LOCAL: http://localhost:${PORT}
-   ACCESO RED:     http://${priorityIp}:${PORT}`);
-
-    if (allIps.length > 1) {
-        console.log(`   OTRAS IPs:`);
-        allIps.forEach(ip => {
-            if (ip.address !== priorityIp) {
-                console.log(`                   http://${ip.address}:${PORT} (${ip.name})`);
-            }
-        });
-    }
-
-    console.log(`
-   La conexión de latencia cero está activa.
-   
+   ACCESO RED:     http://${priorityIp}:${PORT}
+   BASE DE DATOS:  ${dbPath}
 ==================================================
-    `);
-});
+        `);
+    });
+}
 
 // --- MANEJO GLOBAL DE ERRORES ---
 // Middleware para errores de CORS y otros errores no capturados
