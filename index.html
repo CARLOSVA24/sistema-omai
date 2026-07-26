@@ -604,21 +604,29 @@
             style="float:right; background:white; color:red; border:none; padding:2px 8px; cursor:pointer; font-weight:bold;">X</button>
     </div>
     <script>
-        window.onerror = function (msg, url, line, col, error) {
+        function _showAppError(msg, url, line, stack) {
             var debugDiv = document.getElementById('debug-error-console');
             var msgText = document.getElementById('error-msg-text');
             if (debugDiv && msgText) {
                 debugDiv.style.display = 'block';
-                var filename = url ? url.split('/').pop() : 'desconocido';
-                var details = msg + ' <br> (Archivo: ' + filename + ' - Línea: ' + line + ')';
-                if (error && error.stack) {
-                    details += "<br><pre style='margin-top: 10px; font-size: 10px; text-align: left;'>" + error.stack + "</pre>";
+                var details = msg + '<br>(Archivo: <b>' + (url || 'desconocido') + '</b> &mdash; Línea: ' + (line || '?') + ')';
+                if (stack && stack !== msg) {
+                    details += '<br><pre style="margin-top:6px;font-size:10px;text-align:left;white-space:pre-wrap;overflow-wrap:anywhere;">' + stack + '</pre>';
                 }
                 msgText.innerHTML = details;
             }
-            console.error(error || msg);
+            console.error('[APP ERROR]', msg, '|', url, '| line:', line, '\n', stack || '');
+        }
+        window.onerror = function (msg, url, line, col, error) {
+            _showAppError(msg, url, line, error ? error.stack : null);
             return false;
         };
+        window.addEventListener('unhandledrejection', function (event) {
+            var reason = event.reason;
+            var msg = reason ? (reason.message || String(reason)) : 'Promise rechazada sin motivo';
+            var stack = reason && reason.stack ? reason.stack : null;
+            _showAppError('PROMISE RECHAZADA: ' + msg, window.location.href, null, stack);
+        });
     </script>
     <nav class="top-nav">
 
