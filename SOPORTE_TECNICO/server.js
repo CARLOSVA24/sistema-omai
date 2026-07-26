@@ -70,7 +70,6 @@ function isLocalOrPrivateOrigin(origin) {
     }
     return false;
 }
-}
 
 // ─── DOMINIOS PÚBLICOS PERMITIDOS (Cloudflare Tunnel, ngrok, Render, Railway, etc.) ─
 function isAllowedPublicOrigin(origin) {
