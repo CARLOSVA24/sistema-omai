@@ -1,3 +1,4 @@
+// SISTEMA OMAI - Deploy v2a1de0a - fix: CDN leaflet-heat roto eliminado
 const express = require('express');
 const cors = require('cors');
 const bcrypt = require('bcryptjs');
