@@ -335,56 +335,49 @@ app.get('/api/status', (req, res) => {
     res.json({ status: 'online', database: 'connected', timestamp: new Date(), dbPath });
 });
 
-// Endpoint de inicialización de emergencia: crea usuarios por defecto si la tabla está vacía
+// Endpoint de reinicio de contraseñas: siempre sobreescribe con contraseñas conocidas
 app.get('/api/init-users', (req, res) => {
-    db.all("SELECT role FROM users", [], (err, rows) => {
-        if (err) return res.status(500).json({ error: err.message });
+    const SALT_ROUNDS = 10;
+    const defaultPasswords = {
+        "ADMINISTRADOR": "admin",
+        "JEFE OMAI": "jefe",
+        "PERSONAL OMAI": "personal",
+        "LOGISTICA OMAI": "logistica",
+        "INTELIGENCIA OMAI": "inteligencia",
+        "CMDTE GT 51": "cmdte",
+        "CORLOJ": "corloj",
+        "FRAPAL": "frapal",
+        "FRAMOR": "framor",
+        "CORIOS": "corios",
+        "CORMAN": "corman",
+        "ESCLAM": "esclam",
+        "TRAHUA": "trahua",
+        "ESCAUX": "escaux",
+        "TRACAL": "tracal",
+        "TANATA": "tanata",
+        "REMIMB": "remimb",
+        "REMCHI": "remchi",
+        "ESCORB": "escorb",
+        "COMSUB": "comsub",
+        "PURGA_MAESTRA": "omai2024"
+    };
 
-        if (rows && rows.length > 0) {
-            return res.json({ message: 'Usuarios ya existen', count: rows.length, roles: rows.map(r => r.role) });
+    try {
+        // INSERT OR REPLACE siempre sobreescribe — corrige contraseñas corruptas
+        const stmt = db.prepare("INSERT OR REPLACE INTO users (role, password) VALUES (?, ?)");
+        const created = [];
+        for (const [role, pass] of Object.entries(defaultPasswords)) {
+            const hashed = bcrypt.hashSync(pass, SALT_ROUNDS);
+            stmt.run(role, hashed);
+            created.push(role);
         }
-
-        const SALT_ROUNDS = 10;
-        const defaultPasswords = {
-            "ADMINISTRADOR": "admin",
-            "JEFE OMAI": "jefe",
-            "PERSONAL OMAI": "personal",
-            "LOGISTICA OMAI": "logistica",
-            "INTELIGENCIA OMAI": "inteligencia",
-            "CMDTE GT 51": "cmdte",
-            "CORLOJ": "corloj",
-            "FRAPAL": "frapal",
-            "FRAMOR": "framor",
-            "CORIOS": "corios",
-            "CORMAN": "corman",
-            "ESCLAM": "esclam",
-            "TRAHUA": "trahua",
-            "ESCAUX": "escaux",
-            "TRACAL": "tracal",
-            "TANATA": "tanata",
-            "REMIMB": "remimb",
-            "REMCHI": "remchi",
-            "ESCORB": "escorb",
-            "COMSUB": "comsub",
-            "PURGA_MAESTRA": "omai2024"
-        };
-
-        try {
-            const stmt = db.prepare("INSERT OR IGNORE INTO users (role, password) VALUES (?, ?)");
-            const created = [];
-            for (const [role, pass] of Object.entries(defaultPasswords)) {
-                const hashed = bcrypt.hashSync(pass, SALT_ROUNDS);
-                stmt.run(role, hashed);
-                created.push(role);
-            }
-            stmt.finalize();
-            console.log('Usuarios creados via /api/init-users:', created);
-            res.json({ message: 'Usuarios creados exitosamente', count: created.length, roles: created });
-        } catch (e) {
-            console.error('Error en /api/init-users:', e);
-            res.status(500).json({ error: e.message });
-        }
-    });
+        stmt.finalize();
+        console.log('Usuarios reiniciados via /api/init-users:', created);
+        res.json({ message: 'Usuarios creados/reiniciados exitosamente', count: created.length, roles: created });
+    } catch (e) {
+        console.error('Error en /api/init-users:', e);
+        res.status(500).json({ error: e.message });
+    }
 });
 
 const normalizeRoleStr = (str) => String(str || '').trim().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
