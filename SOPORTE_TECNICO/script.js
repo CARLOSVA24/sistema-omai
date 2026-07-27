@@ -125,26 +125,62 @@ async function updateConnectionStatus() {
     }
 }
 
+// Helper para extraer valor del batch con fallback local/default
+function fromBatch(batch, key, defaultVal) {
+    const val = batch[key];
+    const isEmpty = val === null || val === undefined ||
+        (Array.isArray(val) && val.length === 0) ||
+        (val && typeof val === 'object' && !Array.isArray(val) && Object.keys(val).length === 0);
+    if (!isEmpty) return val;
+    const localData = safeJSONParse(key, null);
+    if (localData) return localData;
+    return defaultVal;
+}
+
 async function loadAllDataFromServer() {
-    crimes = await serverLoad('gyecrimes', []);
-    personnel = await serverLoad('gyepersonal', []);
-    guardAssignments = await serverLoad('guardAssignments', []);
-    specialAssignments = await serverLoad('specialAssignments', []);
-    baborPersonnel = await serverLoad('baborPersonnel', []);
-    estriborPersonnel = await serverLoad('estriborPersonnel', []);
-    opsEvents = await serverLoad('opsEvents', []);
-    instantOps = await serverLoad('instantOps', []);
-    patrolOrders = await serverLoad('patrolOrders', []);
-    commandPostPersonnel = await serverLoad('commandPostPersonnel', []);
-    personnelHistory = await serverLoad('personnelHistory', []);
-    vehicles = await serverLoad('gyevehicles', []);
-    externalOrdersMetadata = await serverLoad('externalOrdersMetadata', []);
-    
-    rotationStartDate = await serverLoad('rotationStartDate', null);
-    rotationStartGroup = await serverLoad('rotationStartGroup', 'ALFA');
-    
-    // Sync passwords
-    const serverPasses = await serverLoad('app_passwords', defaultPasswords);
+    // OPTIMIZACIÓN: 1 petición batch en lugar de 13+ peticiones secuenciales
+    const BATCH_KEYS = [
+        'gyecrimes','gyepersonal','guardAssignments','specialAssignments',
+        'baborPersonnel','estriborPersonnel','opsEvents','instantOps',
+        'patrolOrders','commandPostPersonnel','personnelHistory',
+        'gyevehicles','externalOrdersMetadata',
+        'rotationStartDate','rotationStartGroup','app_passwords'
+    ];
+
+    let batch = {};
+    try {
+        const res = await fetchWithTimeout(
+            `${API_BASE}/store-batch?keys=${BATCH_KEYS.join(',')}`,
+            {}, 12000
+        );
+        if (res.ok) {
+            batch = await res.json();
+        } else {
+            throw new Error(`Batch falló: ${res.status}`);
+        }
+    } catch (e) {
+        console.warn('Batch load falló, intentando carga individual...', e.message);
+        const results = await Promise.all(BATCH_KEYS.map(k => serverLoad(k, null).then(v => [k, v])));
+        results.forEach(([k, v]) => { batch[k] = v; });
+    }
+
+    crimes                 = fromBatch(batch, 'gyecrimes', []);
+    personnel              = fromBatch(batch, 'gyepersonal', []);
+    guardAssignments       = fromBatch(batch, 'guardAssignments', []);
+    specialAssignments     = fromBatch(batch, 'specialAssignments', []);
+    baborPersonnel         = fromBatch(batch, 'baborPersonnel', []);
+    estriborPersonnel      = fromBatch(batch, 'estriborPersonnel', []);
+    opsEvents              = fromBatch(batch, 'opsEvents', []);
+    instantOps             = fromBatch(batch, 'instantOps', []);
+    patrolOrders           = fromBatch(batch, 'patrolOrders', []);
+    commandPostPersonnel   = fromBatch(batch, 'commandPostPersonnel', []);
+    personnelHistory       = fromBatch(batch, 'personnelHistory', []);
+    vehicles               = fromBatch(batch, 'gyevehicles', []);
+    externalOrdersMetadata = fromBatch(batch, 'externalOrdersMetadata', []);
+    rotationStartDate      = fromBatch(batch, 'rotationStartDate', null);
+    rotationStartGroup     = fromBatch(batch, 'rotationStartGroup', 'ALFA');
+
+    const serverPasses = fromBatch(batch, 'app_passwords', defaultPasswords);
     storedPasses = serverPasses;
     saveAppState('app_passwords', JSON.stringify(serverPasses));
 }

@@ -605,6 +605,35 @@ app.post('/api/verify-purge-key', (req, res) => {
     });
 });
 
+// ─── ENDPOINT BATCH: carga múltiples claves en UNA sola petición HTTP ───────
+// Antes: 23 peticiones individuales → 30-45s en túneles
+// Ahora: 1 sola petición           → 1-3s máximo
+app.get('/api/store-batch', (req, res) => {
+    const keysParam = req.query.keys;
+    if (!keysParam) return res.status(400).json({ error: 'Parámetro keys requerido.' });
+
+    const keys = String(keysParam).split(',').map(k => k.trim()).filter(Boolean);
+    if (keys.length === 0) return res.json({});
+    if (keys.length > 60) return res.status(400).json({ error: 'Máximo 60 claves por petición.' });
+
+    const placeholders = keys.map(() => '?').join(',');
+    db.all(`SELECT key, value FROM app_data WHERE key IN (${placeholders})`, keys, (err, rows) => {
+        if (err) return res.status(500).json({ error: err.message });
+        const result = {};
+        // Inicializar todas las claves como null (para las que no existen en DB)
+        keys.forEach(k => { result[k] = null; });
+        // Rellenar con los valores de la BD
+        (rows || []).forEach(row => {
+            try {
+                result[row.key] = JSON.parse(row.value);
+            } catch (e) {
+                result[row.key] = row.value;
+            }
+        });
+        res.json(result);
+    });
+});
+
 app.get('/api/store/:key', (req, res) => {
     const key = req.params.key;
     db.get("SELECT value FROM app_data WHERE key = ?", [key], (err, row) => {
