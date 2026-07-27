@@ -797,6 +797,13 @@ document.addEventListener('click', (e) => {
 function showAppView(viewId) {
     if (!viewId) return;
 
+    // Para roles de buques/CODESC (no centrales), redirigir siempre personnelView a dailyCodescRegistryView
+    const currentRole = sessionStorage.getItem('currentUserRole');
+    const coreRoles = ['ADMINISTRADOR', 'JEFE OMAI', 'PERSONAL OMAI', 'LOGISTICA OMAI', 'INTELIGENCIA OMAI', 'CMDTE GT 51'];
+    if (currentRole && !coreRoles.includes(currentRole) && viewId === 'personnelView') {
+        viewId = 'dailyCodescRegistryView';
+    }
+
     // Ocultar herramientas de mapa por defecto
     const mapTools = document.getElementById('map-tools-item');
     if (mapTools) mapTools.style.display = 'none';
