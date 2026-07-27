@@ -79,6 +79,9 @@ function isAllowedPublicOrigin(origin) {
         const hostname = url.hostname.toLowerCase();
         return hostname.endsWith('.trycloudflare.com') ||
                hostname.endsWith('.cfargotunnel.com') ||
+               hostname.endsWith('.loca.lt') ||
+               hostname.endsWith('.localtunnel.me') ||
+               hostname.includes('localtunnel') ||
                hostname.endsWith('.ngrok-free.dev') ||
                hostname.endsWith('.ngrok-free.app') ||
                hostname.endsWith('.onrender.com') ||
