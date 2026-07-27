@@ -2200,6 +2200,7 @@ let personnelPostChart = null;
 let personnelUnitChart = null;
 let chartIntelTypeInstance = null;
 let chartIntelHourInstance = null;
+let chartIntelYearInstance = null;
 
 function updatePersonnelStats() {
     const statTotal = document.getElementById('statTotalPersonal');

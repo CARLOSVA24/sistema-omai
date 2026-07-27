@@ -990,6 +990,11 @@ var incidentFilters = { type: '', district: '' };
 var isHistoricosView = false;
 var currentSigningOpId = null;
 var signaturePadInstance = null;
+let personnelPostChart = null;
+let personnelUnitChart = null;
+let chartIntelTypeInstance = null;
+let chartIntelHourInstance = null;
+let chartIntelYearInstance = null;
 // --- Global helpers for Orden de Patrulla ---
 window.updateORDPATAutomaticFields = function () {
     const dtgInput = document.getElementById('opDTGAuto');
