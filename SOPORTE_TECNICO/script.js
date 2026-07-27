@@ -33,9 +33,17 @@ if (window.location.protocol === 'file:') {
     alert("⚠️ ATENCIÓN: Has abierto el sistema como un archivo local.\n\nPara que el modo MULTIUSUARIO funcione, debes usar el archivo 'INICIAR_PROGRAMA.bat' y acceder vía http://localhost:3000.\n\nLos datos no se sincronizarán en este modo.");
 }
 
+// Utilidad: fetch con timeout automático (evita cuelgues de 45+ segundos en túneles)
+function fetchWithTimeout(url, options = {}, timeoutMs = 8000) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    return fetch(url, { ...options, signal: controller.signal })
+        .finally(() => clearTimeout(timer));
+}
+
 async function serverLoad(key, defaultVal) {
     try {
-        const res = await fetch(`${API_BASE}/store/${key}`);
+        const res = await fetchWithTimeout(`${API_BASE}/store/${key}`, {}, 8000);
         if (!res.ok) throw new Error('Fetch failed');
         const data = await res.json();
         
@@ -51,20 +59,26 @@ async function serverLoad(key, defaultVal) {
 
         return !serverIsEmpty ? data : defaultVal;
     } catch (e) {
-        console.warn(`Error loading ${key} from server, using local fallback`, e);
+        if (e.name === 'AbortError') {
+            console.warn(`Timeout cargando ${key} - usando datos locales`);
+        } else {
+            console.warn(`Error loading ${key} from server, using local fallback`, e);
+        }
         return safeJSONParse(key, defaultVal);
     }
 }
 
 async function serverSave(key, data) {
     try {
-        await fetch(`${API_BASE}/store/${key}`, {
+        await fetchWithTimeout(`${API_BASE}/store/${key}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(data)
-        });
+        }, 8000);
     } catch (e) {
-        console.error(`Error saving ${key} to server`, e);
+        if (e.name !== 'AbortError') {
+            console.error(`Error saving ${key} to server`, e);
+        }
         saveAppState(key, JSON.stringify(data));
     }
 }
@@ -3509,6 +3523,13 @@ function refreshHeatLayer() {
     if (typeof L.heatLayer !== 'function') {
         console.warn("Leaflet.heat plugin no cargado.");
         return;
+    }
+
+    // CORRECCIÓN IndexSizeError: si el contenedor del mapa tiene ancho/alto 0
+    // (ocurre cuando el mapa está oculto), diferir el render para evitar el error
+    const mapContainer = map.getContainer();
+    if (!mapContainer || mapContainer.clientWidth === 0 || mapContainer.clientHeight === 0) {
+        return; // No renderizar sobre canvas de tamaño 0
     }
 
     // Remover todas las capas de calor existentes

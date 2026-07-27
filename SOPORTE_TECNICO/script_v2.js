@@ -56,9 +56,17 @@ if (window.location.protocol === 'file:') {
     alert("⚠️ ATENCIÓN: Has abierto el sistema como un archivo local.\n\nPara que el modo MULTIUSUARIO funcione, debes usar el archivo 'INICIAR_PROGRAMA.bat' y acceder vía http://localhost:3000.\n\nLos datos no se sincronizarán en este modo.");
 }
 
+// Utilidad: fetch con timeout automático (evita cuelgues de 45+ segundos en túneles)
+function fetchWithTimeout(url, options = {}, timeoutMs = 8000) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    return fetch(url, { ...options, signal: controller.signal })
+        .finally(() => clearTimeout(timer));
+}
+
 async function serverLoad(key, defaultVal) {
     try {
-        const res = await fetch(`${API_BASE}/store/${key}`);
+        const res = await fetchWithTimeout(`${API_BASE}/store/${key}`, {}, 8000);
         if (!res.ok) throw new Error('Fetch failed');
         const data = await res.json();
 
@@ -74,7 +82,11 @@ async function serverLoad(key, defaultVal) {
 
         return !serverIsEmpty ? data : defaultVal;
     } catch (e) {
-        console.warn(`Error loading ${key} from server, using local fallback`, e);
+        if (e.name === 'AbortError') {
+            console.warn(`Timeout cargando ${key} - usando datos locales`);
+        } else {
+            console.warn(`Error loading ${key} from server, using local fallback`, e);
+        }
         return safeJSONParse(key, defaultVal);
     }
 }
@@ -83,16 +95,18 @@ async function serverSave(key, data) {
     try {
         // Obtener el socket ID actual para que el servidor no rebote el evento de vuelta
         const socketId = (typeof socket !== 'undefined' && socket && socket.id) ? socket.id : '';
-        await fetch(`${API_BASE}/store/${key}`, {
+        await fetchWithTimeout(`${API_BASE}/store/${key}`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'x-socket-id': socketId
             },
             body: JSON.stringify(data)
-        });
+        }, 8000);
     } catch (e) {
-        console.error(`Error saving ${key} to server`, e);
+        if (e.name !== 'AbortError') {
+            console.error(`Error saving ${key} to server`, e);
+        }
         saveAppState(key, JSON.stringify(data));
     }
 }
@@ -120,7 +134,7 @@ async function updateConnectionStatus() {
     if (!dot || !text) return;
 
     try {
-        const res = await fetch(`${API_BASE}/status`);
+        const res = await fetchWithTimeout(`${API_BASE}/status`, {}, 8000);
         if (res.ok) {
             dot.style.background = '#22c55e'; // Verde
             dot.style.boxShadow = '0 0 10px #22c55e';
@@ -135,7 +149,9 @@ async function updateConnectionStatus() {
         dot.style.boxShadow = '0 0 10px #ef4444';
         text.textContent = 'Sin Conexión';
         text.style.color = '#b91c1c';
-        console.error("Fallo de conexión al servidor:", e);
+        if (e.name !== 'AbortError') {
+            console.error("Fallo de conexión al servidor:", e);
+        }
     }
 }
 
@@ -5255,6 +5271,13 @@ function refreshHeatLayer() {
     if (typeof L.heatLayer !== 'function') {
         console.warn("Leaflet.heat plugin no cargado.");
         return;
+    }
+
+    // CORRECCIÓN IndexSizeError: si el contenedor del mapa tiene ancho/alto 0
+    // (ocurre cuando el mapa está oculto), diferir el render para evitar el error
+    const mapContainer = map.getContainer();
+    if (!mapContainer || mapContainer.clientWidth === 0 || mapContainer.clientHeight === 0) {
+        return; // No renderizar sobre canvas de tamaño 0
     }
 
     // Remover todas las capas de calor existentes
